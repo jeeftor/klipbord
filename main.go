@@ -17,6 +17,8 @@ import (
 //go:embed index.html
 var indexHTML []byte
 
+var version = "dev"
+
 const (
 	defaultPort      = "8080"
 	defaultDataDir   = "/data"
@@ -81,6 +83,7 @@ func main() {
 	mux.HandleFunc("/api/text/", apiTextItemHandler)
 	mux.HandleFunc("/api/upload", apiUploadHandler)
 	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/api/version", versionHandler)
 
 	// MCP endpoint
 	mux.HandleFunc("/mcp", mcpHandler)
@@ -276,8 +279,14 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	html := strings.Replace(string(indexHTML), "{{VERSION}}", version, 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(indexHTML)
+	w.Write([]byte(html))
+}
+
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(fmt.Sprintf(`{"version":"%s"}`, version)))
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

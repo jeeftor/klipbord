@@ -5,7 +5,8 @@ WORKDIR /build
 COPY go.mod ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o paste -ldflags="-s -w" .
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -o paste -ldflags="-s -w -X main.version=${VERSION}" .
 
 # Final stage
 FROM alpine:latest

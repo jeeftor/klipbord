@@ -63,6 +63,16 @@ body {
   color: var(--bg);
   font-weight: 700;
 }
+.version-badge {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-family: var(--mono);
+}
 .header-actions {
   display: flex;
   gap: 12px;
@@ -387,7 +397,7 @@ body {
 <body>
 
 <div class="header">
-  <h1><span class="logo">P</span> Paste</h1>
+  <h1><span class="logo">P</span> Paste <span class="version-badge" id="versionBadge">{{VERSION}}</span></h1>
   <div class="header-actions">
     <select class="ttl-select" id="ttl">
       <option value="1h">Expires in 1 hour</option>
