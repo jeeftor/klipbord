@@ -67,6 +67,7 @@ func main() {
 	}
 
 	loadMetadata()
+	cleanupOrphanedMetadata()
 
 	// Start expiry sweeper
 	go sweeper()
@@ -123,6 +124,38 @@ func loadMetadata() {
 	if err := json.Unmarshal(data, &meta); err != nil {
 		log.Printf("Warning: failed to parse metadata: %v", err)
 		meta = Metadata{Items: []Item{}}
+	}
+}
+
+// cleanupOrphanedMetadata removes metadata entries whose files no longer exist on disk
+func cleanupOrphanedMetadata() {
+	metaMu.Lock()
+	defer metaMu.Unlock()
+	var cleaned []Item
+	removed := 0
+	for _, item := range meta.Items {
+		var fpath string
+		if item.Type == "text" {
+			fpath = filepath.Join(dataDir, textDir, item.ID)
+		} else {
+			fpath = filepath.Join(dataDir, fileDir, item.ID)
+		}
+		if _, err := os.Stat(fpath); err != nil {
+			log.Printf("Cleanup: removing orphaned metadata entry %s (%s) — file missing", item.ID, item.Name)
+			removed++
+			continue
+		}
+		cleaned = append(cleaned, item)
+	}
+	if removed > 0 {
+		meta.Items = cleaned
+		log.Printf("Cleanup: removed %d orphaned entries", removed)
+		// Save cleaned metadata
+		path := filepath.Join(dataDir, metaFile)
+		data, err := json.MarshalIndent(meta, "", "  ")
+		if err == nil {
+			os.WriteFile(path, data, 0644)
+		}
 	}
 }
 

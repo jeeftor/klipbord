@@ -1176,9 +1176,18 @@ function loadItems() {
           .then(data => {
             const el = document.getElementById(`preview-${item.id}`);
             if (el) {
-              const preview = data.content.substring(0, 200);
-              el.textContent = preview;
+              if (data.error) {
+                el.textContent = '(file missing)';
+                el.style.opacity = '0.4';
+              } else {
+                const preview = data.content.substring(0, 200);
+                el.textContent = preview;
+              }
             }
+          })
+          .catch(() => {
+            const el = document.getElementById(`preview-${item.id}`);
+            if (el) { el.textContent = '(error loading)'; el.style.opacity = '0.4'; }
           });
       });
     });
