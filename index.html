@@ -477,9 +477,9 @@ document.onpaste = function(e) {
   const items = e.clipboardData?.items || [];
   for (const item of items) {
     if (item.type.startsWith('image/')) {
+      // Image paste — upload as file
       const blob = item.getAsFile();
       if (blob) {
-        // Generate a filename if the blob doesn't have one
         if (!blob.name || blob.name === 'image.png') {
           const ext = blob.type.split('/')[1] || 'png';
           blob.name = `clipboard_${Date.now()}.${ext}`;
@@ -487,6 +487,24 @@ document.onpaste = function(e) {
         uploadFile(blob);
         e.preventDefault();
       }
+    } else if (item.type === 'text/plain') {
+      // Text paste — auto-submit as a snippet
+      // Only auto-submit if the user is NOT actively editing the textarea
+      // (so they can still paste into the textarea to edit before submitting)
+      const textarea = document.getElementById('textInput');
+      if (document.activeElement !== textarea) {
+        const text = item.getAsString ? new Promise(resolve => {
+          item.getAsString(resolve);
+        }) : Promise.resolve(e.clipboardData.getData('text/plain'));
+
+        text.then(content => {
+          if (content && content.trim()) {
+            submitTextDirect(content);
+          }
+        });
+        e.preventDefault();
+      }
+      // If textarea IS focused, let the browser paste normally into it
     }
   }
 };
@@ -535,6 +553,26 @@ function submitText() {
         showToast(`Created: ${data.name} → ${data.url}`);
         document.getElementById('textInput').value = '';
         document.getElementById('textName').value = '';
+        loadItems();
+      }
+    })
+    .catch(err => showToast('Failed: ' + err, true));
+}
+
+function submitTextDirect(content) {
+  const ttl = document.getElementById('ttl').value;
+
+  fetch(`${API}/text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, ttl })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        showToast(data.error, true);
+      } else {
+        showToast(`Pasted: ${data.name} → ${data.url}`);
         loadItems();
       }
     })
