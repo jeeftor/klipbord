@@ -49,10 +49,15 @@ type MCPContent struct {
 var mcpTools = []MCPTool{
 	{
 		Name:        "list_files",
-		Description: "List all pasted files and text snippets with metadata (id, name, type, size, created, expires, url).",
+		Description: "List all pasted files and text snippets with metadata (id, name, type, size, created, expires, persistent, url). Use persistent=true to list only persistent items.",
 		InputSchema: map[string]any{
-			"type":       "object",
-			"properties": map[string]any{},
+			"type": "object",
+			"properties": map[string]any{
+				"persistent": map[string]any{
+					"type":        "boolean",
+					"description": "If true, list only persistent items. If false, list only non-persistent items. If omitted, list all.",
+				},
+			},
 		},
 	},
 	{
@@ -105,6 +110,10 @@ var mcpTools = []MCPTool{
 					"type":        "string",
 					"description": "Time to live: 1h, 1d, 7d, 30d, or never (default: 7d)",
 				},
+				"persistent": map[string]any{
+					"type":        "boolean",
+					"description": "If true, item will never expire (default: false)",
+				},
 			},
 			"required": []string{"filename", "content"},
 		},
@@ -126,6 +135,10 @@ var mcpTools = []MCPTool{
 				"ttl": map[string]any{
 					"type":        "string",
 					"description": "Time to live: 1h, 1d, 7d, 30d, or never (default: 7d)",
+				},
+				"persistent": map[string]any{
+					"type":        "boolean",
+					"description": "If true, item will never expire (default: false)",
 				},
 			},
 			"required": []string{"content"},
@@ -157,6 +170,24 @@ var mcpTools = []MCPTool{
 				},
 			},
 			"required": []string{"id"},
+		},
+	},
+	{
+		Name:        "persist_file",
+		Description: "Pin or unpin an item to keep it forever (persistent items never expire).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{
+					"type":        "string",
+					"description": "The unique ID of the item",
+				},
+				"persistent": map[string]any{
+					"type":        "boolean",
+					"description": "true to pin (keep forever), false to unpin (restore default TTL)",
+				},
+			},
+			"required": []string{"id", "persistent"},
 		},
 	},
 }
@@ -238,6 +269,10 @@ func mcpHandler(w http.ResponseWriter, r *http.Request) {
 func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError) {
 	switch name {
 	case "list_files":
+		persistent, hasPersistent := args["persistent"].(bool)
+		if hasPersistent {
+			return mcpListFilesFiltered(persistent)
+		}
 		return mcpListFiles()
 
 	case "get_file":
@@ -259,19 +294,21 @@ func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError
 		content, _ := args["content"].(string)
 		mimeType, _ := args["mime_type"].(string)
 		ttl, _ := args["ttl"].(string)
+		persistent, _ := args["persistent"].(bool)
 		if filename == "" || content == "" {
 			return nil, &MCPError{Code: -32602, Message: "filename and content are required"}
 		}
-		return mcpUploadFile(filename, content, mimeType, ttl)
+		return mcpUploadFile(filename, content, mimeType, ttl, persistent)
 
 	case "create_text":
 		content, _ := args["content"].(string)
 		itemName, _ := args["name"].(string)
 		ttl, _ := args["ttl"].(string)
+		persistent, _ := args["persistent"].(bool)
 		if content == "" {
 			return nil, &MCPError{Code: -32602, Message: "content is required"}
 		}
-		return mcpCreateText(content, itemName, ttl)
+		return mcpCreateText(content, itemName, ttl, persistent)
 
 	case "get_text":
 		id, ok := args["id"].(string)
@@ -287,6 +324,14 @@ func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError
 		}
 		return mcpDeleteFile(id)
 
+	case "persist_file":
+		id, ok := args["id"].(string)
+		if !ok || id == "" {
+			return nil, &MCPError{Code: -32602, Message: "id is required"}
+		}
+		persistent, _ := args["persistent"].(bool)
+		return mcpPersistFile(id, persistent)
+
 	default:
 		return nil, &MCPError{Code: -32601, Message: "Unknown tool: " + name}
 	}
@@ -294,6 +339,21 @@ func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError
 
 func mcpListFiles() (interface{}, *MCPError) {
 	items := listItems()
+	return formatItemList(items)
+}
+
+func mcpListFilesFiltered(persistent bool) (interface{}, *MCPError) {
+	all := listItems()
+	var items []Item
+	for _, item := range all {
+		if item.Persistent == persistent {
+			items = append(items, item)
+		}
+	}
+	return formatItemList(items)
+}
+
+func formatItemList(items []Item) (interface{}, *MCPError) {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Found %d items:", len(items)))
 	for _, item := range items {
@@ -302,8 +362,12 @@ func mcpListFiles() (interface{}, *MCPError) {
 		if !item.Expires.IsZero() {
 			expiry = item.Expires.Format("2006-01-02 15:04:05")
 		}
-		lines = append(lines, fmt.Sprintf("  [%s] %s (%s, %d bytes, expires: %s) — %s",
-			item.ID, item.Name, item.Type, item.Size, expiry, url))
+		pinTag := ""
+		if item.Persistent {
+			pinTag = " [persistent]"
+		}
+		lines = append(lines, fmt.Sprintf("  [%s] %s (%s, %d bytes, expires: %s%s) — %s",
+			item.ID, item.Name, item.Type, item.Size, expiry, pinTag, url))
 	}
 	return MCPToolResult{
 		Content: []MCPContent{{Type: "text", Text: strings.Join(lines, "\n")}},
@@ -350,7 +414,7 @@ func mcpGetFileURL(id string) (interface{}, *MCPError) {
 	}, nil
 }
 
-func mcpUploadFile(filename, content, mimeType, ttlStr string) (interface{}, *MCPError) {
+func mcpUploadFile(filename, content, mimeType, ttlStr string, persistent bool) (interface{}, *MCPError) {
 	data, err := base64.StdEncoding.DecodeString(content)
 	if err != nil {
 		return nil, &MCPError{Code: -32602, Message: "invalid base64 content"}
@@ -375,19 +439,23 @@ func mcpUploadFile(filename, content, mimeType, ttlStr string) (interface{}, *MC
 	}
 
 	var expires time.Time
-	if ttl > 0 {
+	if ttl > 0 && !persistent {
 		expires = time.Now().Add(ttl)
 	}
 
 	item := Item{
-		ID:       id,
-		Name:     filename,
-		Type:     "file",
-		MimeType: mimeType,
-		Size:     int64(len(data)),
-		Created:  time.Now(),
-		Expires:  expires,
-		TTL:      ttlString(ttl),
+		ID:         id,
+		Name:       filename,
+		Type:       "file",
+		MimeType:   mimeType,
+		Size:       int64(len(data)),
+		Created:    time.Now(),
+		Expires:    expires,
+		TTL:        ttlString(ttl),
+		Persistent: persistent,
+	}
+	if persistent {
+		item.TTL = "never"
 	}
 	addItem(item)
 
@@ -400,7 +468,7 @@ func mcpUploadFile(filename, content, mimeType, ttlStr string) (interface{}, *MC
 	}, nil
 }
 
-func mcpCreateText(content, name, ttlStr string) (interface{}, *MCPError) {
+func mcpCreateText(content, name, ttlStr string, persistent bool) (interface{}, *MCPError) {
 	ttl, err := parseTTL(ttlStr)
 	if err != nil {
 		ttl = defaultTTL
@@ -416,18 +484,22 @@ func mcpCreateText(content, name, ttlStr string) (interface{}, *MCPError) {
 	}
 
 	var expires time.Time
-	if ttl > 0 {
+	if ttl > 0 && !persistent {
 		expires = time.Now().Add(ttl)
 	}
 
 	item := Item{
-		ID:      id,
-		Name:    name,
-		Type:    "text",
-		Size:    int64(len(content)),
-		Created: time.Now(),
-		Expires: expires,
-		TTL:     ttlString(ttl),
+		ID:         id,
+		Name:       name,
+		Type:       "text",
+		Size:       int64(len(content)),
+		Created:    time.Now(),
+		Expires:    expires,
+		TTL:        ttlString(ttl),
+		Persistent: persistent,
+	}
+	if persistent {
+		item.TTL = "never"
 	}
 	addItem(item)
 
@@ -464,6 +536,30 @@ func mcpDeleteFile(id string) (interface{}, *MCPError) {
 	deleteItem(id)
 	return MCPToolResult{
 		Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("Deleted item %s", id)}},
+	}, nil
+}
+
+func mcpPersistFile(id string, persistent bool) (interface{}, *MCPError) {
+	if _, ok := findItem(id); !ok {
+		return nil, &MCPError{Code: -32602, Message: "item not found"}
+	}
+	updateItem(id, func(item *Item) bool {
+		item.Persistent = persistent
+		if persistent {
+			item.Expires = time.Time{}
+			item.TTL = "never"
+		} else {
+			item.Expires = time.Now().Add(defaultTTL)
+			item.TTL = ttlString(defaultTTL)
+		}
+		return true
+	})
+	action := "pinned"
+	if !persistent {
+		action = "unpinned"
+	}
+	return MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("%s item %s", action, id)}},
 	}, nil
 }
 

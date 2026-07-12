@@ -1069,6 +1069,18 @@ body {
         <div class="api-example"><span class="curl">curl</span> <span class="url" id="restUrl9"></span>/health</div>
       </div>
     </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method GET">GET</span>
+        <span class="api-path">/api/version</span>
+        <span class="api-desc">Get server version</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="url" id="restUrl10"></span>/api/version</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1100,8 +1112,8 @@ body {
 
     <div class="mcp-tool-card">
       <div class="mcp-tool-name">list_files</div>
-      <div class="mcp-tool-desc">List all pasted files and text snippets with metadata (id, name, type, size, created, expires, url).</div>
-      <div class="mcp-tool-params">Parameters: <span class="param-name">(none)</span></div>
+      <div class="mcp-tool-desc">List all pasted files and text snippets with metadata (id, name, type, size, created, expires, persistent, url).</div>
+      <div class="mcp-tool-params">Parameters: <span class="param-name">persistent</span> (<span class="param-type">boolean</span>, optional) — Filter by persistent state</div>
     </div>
 
     <div class="mcp-tool-card">
@@ -1119,13 +1131,13 @@ body {
     <div class="mcp-tool-card">
       <div class="mcp-tool-name">upload_file</div>
       <div class="mcp-tool-desc">Upload a file (base64-encoded content + filename). Returns the item ID and URL.</div>
-      <div class="mcp-tool-params">Parameters: <span class="param-name">filename</span> (<span class="param-type">string</span>, required), <span class="param-name">content</span> (<span class="param-type">string</span>, required, base64), <span class="param-name">mime_type</span> (<span class="param-type">string</span>, optional), <span class="param-name">ttl</span> (<span class="param-type">string</span>, optional: 1h, 1d, 7d, 30d, never)</div>
+      <div class="mcp-tool-params">Parameters: <span class="param-name">filename</span> (<span class="param-type">string</span>, required), <span class="param-name">content</span> (<span class="param-type">string</span>, required, base64), <span class="param-name">mime_type</span> (<span class="param-type">string</span>, optional), <span class="param-name">ttl</span> (<span class="param-type">string</span>, optional: 1h, 1d, 7d, 30d, never), <span class="param-name">persistent</span> (<span class="param-type">boolean</span>, optional)</div>
     </div>
 
     <div class="mcp-tool-card">
       <div class="mcp-tool-name">create_text</div>
       <div class="mcp-tool-desc">Create a text snippet. Returns the item ID and URL.</div>
-      <div class="mcp-tool-params">Parameters: <span class="param-name">content</span> (<span class="param-type">string</span>, required), <span class="param-name">name</span> (<span class="param-type">string</span>, optional), <span class="param-name">ttl</span> (<span class="param-type">string</span>, optional: 1h, 1d, 7d, 30d, never)</div>
+      <div class="mcp-tool-params">Parameters: <span class="param-name">content</span> (<span class="param-type">string</span>, required), <span class="param-name">name</span> (<span class="param-type">string</span>, optional), <span class="param-name">ttl</span> (<span class="param-type">string</span>, optional: 1h, 1d, 7d, 30d, never), <span class="param-name">persistent</span> (<span class="param-type">boolean</span>, optional)</div>
     </div>
 
     <div class="mcp-tool-card">
@@ -1138,6 +1150,12 @@ body {
       <div class="mcp-tool-name">delete_file</div>
       <div class="mcp-tool-desc">Delete a file or text snippet by ID.</div>
       <div class="mcp-tool-params">Parameters: <span class="param-name">id</span> (<span class="param-type">string</span>, required) — The unique ID of the item to delete</div>
+    </div>
+
+    <div class="mcp-tool-card">
+      <div class="mcp-tool-name">persist_file</div>
+      <div class="mcp-tool-desc">Pin or unpin an item to keep it forever (persistent items never expire).</div>
+      <div class="mcp-tool-params">Parameters: <span class="param-name">id</span> (<span class="param-type">string</span>, required), <span class="param-name">persistent</span> (<span class="param-type">boolean</span>, required) — true to pin, false to unpin</div>
     </div>
   </div>
 </div>
@@ -1203,7 +1221,7 @@ function switchTab(tab, ev) {
   // REST tab
   const restBase = document.getElementById('restBaseUrl');
   if (restBase) restBase.textContent = BASE;
-  for (let i = 1; i <= 9; i++) {
+  for (let i = 1; i <= 10; i++) {
     const el = document.getElementById('restUrl' + i);
     if (el) el.textContent = BASE;
   }
