@@ -57,15 +57,16 @@ var (
 )
 
 type Item struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"` // "text" or "file"
-	MimeType  string    `json:"mime_type,omitempty"`
-	Size      int64     `json:"size"`
-	Created   time.Time `json:"created"`
-	Expires   time.Time `json:"expires"`
-	TTL       string    `json:"ttl"`
-	Content   string    `json:"content,omitempty"` // for text items in API responses
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"` // "text" or "file"
+	MimeType   string    `json:"mime_type,omitempty"`
+	Size       int64     `json:"size"`
+	Created    time.Time `json:"created"`
+	Expires    time.Time `json:"expires"`
+	TTL        string    `json:"ttl"`
+	Persistent bool      `json:"persistent"`
+	Content    string    `json:"content,omitempty"` // for text items in API responses
 }
 
 type Metadata struct {
@@ -229,6 +230,25 @@ func removeItem(id string) bool {
 	return false
 }
 
+// updateItem modifies an item in-place by ID and saves metadata.
+// The update function receives a pointer to the item; return false to abort.
+func updateItem(id string, update func(*Item) bool) bool {
+	metaMu.Lock()
+	defer metaMu.Unlock()
+	for i := range meta.Items {
+		if meta.Items[i].ID == id {
+			if !update(&meta.Items[i]) {
+				return false
+			}
+			metaMu.Unlock()
+			saveMetadata()
+			metaMu.Lock()
+			return true
+		}
+	}
+	return false
+}
+
 func findItem(id string) (Item, bool) {
 	metaMu.RLock()
 	defer metaMu.RUnlock()
@@ -318,7 +338,7 @@ func sweeper() {
 	for range ticker.C {
 		now := time.Now()
 		for _, item := range listItems() {
-			if item.Expires.IsZero() {
+			if item.Persistent || item.Expires.IsZero() {
 				continue
 			}
 			if now.After(item.Expires) {
@@ -387,6 +407,19 @@ func apiFilesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	items := listItems()
+
+	// Filter by persistent flag if query param is present
+	if q := r.URL.Query().Get("persistent"); q != "" {
+		wantPersistent := q == "true"
+		filtered := items[:0]
+		for _, item := range items {
+			if item.Persistent == wantPersistent {
+				filtered = append(filtered, item)
+			}
+		}
+		items = filtered
+	}
+
 	// Sort by created desc
 	for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
 		items[i], items[j] = items[j], items[i]
@@ -403,6 +436,7 @@ func apiFilesHandler(w http.ResponseWriter, r *http.Request) {
 			"created":    item.Created,
 			"expires":    item.Expires,
 			"ttl":        item.TTL,
+			"persistent": item.Persistent,
 			"url":        fmt.Sprintf("%s/%s/%s", baseURL, itemTypePath(item.Type), item.ID),
 		}
 	}
@@ -436,6 +470,45 @@ func apiFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodDelete {
 		deleteItem(id)
 		writeJSON(w, map[string]string{"status": "deleted", "id": id})
+		return
+	}
+
+	if r.Method == http.MethodPatch {
+		var req struct {
+			Persistent *bool `json:"persistent"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
+			return
+		}
+		if req.Persistent == nil {
+			http.Error(w, `{"error":"persistent field required"}`, http.StatusBadRequest)
+			return
+		}
+		ok := updateItem(id, func(item *Item) bool {
+			item.Persistent = *req.Persistent
+			if *req.Persistent {
+				// Persistent items never expire
+				item.Expires = time.Time{}
+				item.TTL = "never"
+			} else {
+				// Unpersisting: restore default TTL so it will eventually expire
+				item.Expires = time.Now().Add(defaultTTL)
+				item.TTL = ttlString(defaultTTL)
+			}
+			return true
+		})
+		if !ok {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		updated, _ := findItem(id)
+		writeJSON(w, map[string]interface{}{
+			"id":         updated.ID,
+			"persistent": updated.Persistent,
+			"expires":    updated.Expires,
+			"ttl":        updated.TTL,
+		})
 		return
 	}
 

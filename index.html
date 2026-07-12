@@ -434,6 +434,14 @@ body {
   color: var(--text-muted);
   font-size: 13px;
 }
+.persistent-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
 .items-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -663,6 +671,7 @@ body {
 }
 .api-method.GET { background: rgba(63, 185, 80, 0.2); color: var(--success); }
 .api-method.POST { background: rgba(88, 166, 255, 0.2); color: var(--accent); }
+.api-method.PATCH { background: rgba(210, 153, 34, 0.2); color: #d29922; }
 .api-method.DELETE { background: rgba(248, 81, 73, 0.2); color: var(--danger); }
 .api-path {
   font-family: var(--mono);
@@ -782,9 +791,10 @@ body {
 </div>
 
 <div class="tabs">
-  <button class="tab active" onclick="switchTab('clipboard')">Clipboard</button>
-  <button class="tab" onclick="switchTab('rest')">REST API</button>
-  <button class="tab" onclick="switchTab('mcp')">MCP</button>
+  <button class="tab active" onclick="switchTab('clipboard', event)">Clipboard</button>
+  <button class="tab" onclick="switchTab('persistent', event)">Persistent</button>
+  <button class="tab" onclick="switchTab('rest', event)">REST API</button>
+  <button class="tab" onclick="switchTab('mcp', event)">MCP</button>
 </div>
 
 <!-- Tab: Clipboard -->
@@ -833,6 +843,33 @@ body {
     <div id="emptyState" class="empty" style="display:none">
       <div class="empty-icon">📭</div>
       <p>No items yet. Paste something above!</p>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Persistent -->
+<div class="tab-content" id="tab-persistent">
+  <div class="main">
+    <div class="items-header">
+      <h2>Persistent Items</h2>
+      <span class="items-count" id="persistentCount"></span>
+    </div>
+    <div class="persistent-controls">
+      <label>Sort by:</label>
+      <select class="ttl-select" id="persistentSort" onchange="loadPersistentItems()">
+        <option value="created-desc">Newest first</option>
+        <option value="created-asc">Oldest first</option>
+        <option value="name-asc">Name (A-Z)</option>
+        <option value="name-desc">Name (Z-A)</option>
+        <option value="size-desc">Largest first</option>
+        <option value="size-asc">Smallest first</option>
+        <option value="type-asc">Type (A-Z)</option>
+      </select>
+    </div>
+    <div id="persistentGrid" class="items-grid"></div>
+    <div id="persistentEmpty" class="empty" style="display:none">
+      <div class="empty-icon">📌</div>
+      <p>No persistent items yet. Pin items from the Clipboard tab to keep them forever.</p>
     </div>
   </div>
 </div>
@@ -968,6 +1005,32 @@ body {
       <div class="api-card-body">
         <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
         <div class="api-example"><span class="curl">curl</span> <span class="flag">-X</span> DELETE <span class="url" id="restUrl6"></span>/api/files/<span class="json-key">{id}</span></div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method POST">PATCH</span>
+        <span class="api-path">/api/files/{id}</span>
+        <span class="api-desc">Pin/unpin item (persist forever)</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="flag">-X</span> PATCH <span class="flag">-H</span> <span class="json-str">'Content-Type: application/json'</span> \
+  <span class="flag">-d</span> <span class="json-str">'{"persistent":true}'</span> \
+  <span class="url" id="restUrl6b"></span>/api/files/<span class="json-key">{id}</span></div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method GET">GET</span>
+        <span class="api-path">/api/files?persistent=true</span>
+        <span class="api-desc">List persistent items only</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="url" id="restUrl6c"></span>/api/files?persistent=true</div>
       </div>
     </div>
 
@@ -1123,14 +1186,16 @@ const ICONS = {
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg>',
 };
 
 // --- Tab switching ---
-function switchTab(tab) {
+function switchTab(tab, ev) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  event.target.classList.add('active');
+  if (ev) ev.target.classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'persistent') loadPersistentItems();
 }
 
 // --- Populate API/MCP URLs on load ---
@@ -1145,6 +1210,11 @@ function switchTab(tab) {
   // Chunked upload URLs
   for (const suffix of ['b', 'c', 'd', 'e']) {
     const el = document.getElementById('restUrl2' + suffix);
+    if (el) el.textContent = BASE;
+  }
+  // Persistent API URLs
+  for (const suffix of ['b', 'c']) {
+    const el = document.getElementById('restUrl6' + suffix);
     if (el) el.textContent = BASE;
   }
   // MCP tab
@@ -1557,6 +1627,11 @@ function deleteItem(id, name) {
     .then(() => {
       showToast(`Deleted: ${name}`);
       loadItems();
+      // Also refresh persistent tab if it's visible
+      const pGrid = document.getElementById('persistentGrid');
+      if (pGrid && document.getElementById('tab-persistent').classList.contains('active')) {
+        loadPersistentItems();
+      }
     })
     .catch(err => showToast('Delete failed: ' + err, true));
 }
@@ -1785,7 +1860,7 @@ function formatExpiry(expires) {
 }
 
 function loadItems() {
-  return fetch(`${API}/files`)
+  return fetch(`${API}/files?persistent=false`)
     .then(r => r.json())
     .then(data => {
       const grid = document.getElementById('itemsGrid');
@@ -1802,85 +1877,164 @@ function loadItems() {
       }
       empty.style.display = 'none';
 
-      grid.innerHTML = items.map(item => {
-        let thumb = '';
-        if (item.type === 'text') {
-          // We'll load text content lazily for preview
-          thumb = `<div class="item-thumb"><div class="code-preview" id="preview-${item.id}">Loading...</div></div>`;
-        } else if (item.mime_type && item.mime_type.startsWith('image/')) {
-          thumb = `<div class="item-thumb"><img src="/f/${item.id}" alt="${escapeHtml(item.name)}" loading="lazy"></div>`;
-        } else {
-          thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
-        }
-
-        const expiryText = formatExpiry(item.expires);
-        const expiryClass = expiryText !== 'never' && expiryText !== 'expired' ? 'expires' : '';
-
-        let actions = '';
-        if (item.type === 'text') {
-          actions = `
-            <button class="icon-btn" data-tooltip="View" onclick="viewText('${item.id}')">${ICONS.eye}</button>
-            <button class="icon-btn" data-tooltip="Copy content to clipboard" onclick="copyTextContent('${item.id}')">${ICONS.copy}</button>
-            <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'text', '${escapeHtml(item.name)}')">${ICONS.share}</button>
-            <button class="icon-btn" data-tooltip="Copy URL" onclick="copyTextUrl('${item.id}')">${ICONS.link}</button>
-            <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
-          `;
-        } else if (item.mime_type && item.mime_type.startsWith('image/')) {
-          actions = `
-            <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
-            <button class="icon-btn" data-tooltip="Copy image to clipboard" onclick="copyImageToClipboard('${item.id}')">${ICONS.image}</button>
-            <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
-            <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
-            <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
-          `;
-        } else {
-          actions = `
-            <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
-            <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
-            <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
-            <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
-          `;
-        }
-
-        return `
-          <div class="item-card">
-            ${thumb}
-            <div class="item-info">
-              <div class="item-name">${escapeHtml(item.name)}</div>
-              <div class="item-meta">
-                <span class="badge">${item.type}</span>
-                <span class="badge">${formatSize(item.size)}</span>
-                <span class="badge ${expiryClass}">${expiryText}</span>
-                <span class="badge">${item.id}</span>
-              </div>
-            </div>
-            <div class="item-actions">${actions}</div>
-          </div>
-        `;
-      }).join('');
-
-      // Load text previews
-      items.filter(i => i.type === 'text').forEach(item => {
-        fetch(`${API}/files/${item.id}`)
-          .then(r => r.json())
-          .then(data => {
-            const el = document.getElementById(`preview-${item.id}`);
-            if (el) {
-              if (data.error) {
-                el.textContent = '(file missing)';
-                el.style.opacity = '0.4';
-              } else {
-                const preview = data.content.substring(0, 200);
-                el.textContent = preview;
-              }
-            }
-          })
-          .catch(() => {
-            const el = document.getElementById(`preview-${item.id}`);
-            if (el) { el.textContent = '(error loading)'; el.style.opacity = '0.4'; }
-          });
-      });
+      grid.innerHTML = items.map(item => renderItemCard(item, false)).join('');
+      loadTextPreviews(items);
     });
+}
+
+function loadPersistentItems() {
+  return fetch(`${API}/files?persistent=true`)
+    .then(r => r.json())
+    .then(data => {
+      const grid = document.getElementById('persistentGrid');
+      const empty = document.getElementById('persistentEmpty');
+      const count = document.getElementById('persistentCount');
+      let items = data.items || [];
+
+      // Sort
+      const sortBy = document.getElementById('persistentSort')?.value || 'created-desc';
+      items.sort((a, b) => {
+        switch (sortBy) {
+          case 'created-asc': return new Date(a.created) - new Date(b.created);
+          case 'created-desc': return new Date(b.created) - new Date(a.created);
+          case 'name-asc': return a.name.localeCompare(b.name);
+          case 'name-desc': return b.name.localeCompare(a.name);
+          case 'size-asc': return a.size - b.size;
+          case 'size-desc': return b.size - a.size;
+          case 'type-asc': return a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
+          default: return 0;
+        }
+      });
+
+      count.textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
+
+      if (items.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      grid.innerHTML = items.map(item => renderItemCard(item, true)).join('');
+      loadTextPreviews(items);
+    });
+}
+
+function renderItemCard(item, isPersistent) {
+  let thumb = '';
+  if (item.type === 'text') {
+    thumb = `<div class="item-thumb"><div class="code-preview" id="preview-${item.id}">Loading...</div></div>`;
+  } else if (item.mime_type && item.mime_type.startsWith('image/')) {
+    thumb = `<div class="item-thumb"><img src="/f/${item.id}" alt="${escapeHtml(item.name)}" loading="lazy"></div>`;
+  } else {
+    thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
+  }
+
+  const expiryText = formatExpiry(item.expires);
+  const expiryClass = expiryText !== 'never' && expiryText !== 'expired' ? 'expires' : '';
+
+  // Pin/unpin button
+  const pinBtn = isPersistent
+    ? `<button class="icon-btn" data-tooltip="Unpin (restore TTL)" onclick="unpersistItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.pin}</button>`
+    : `<button class="icon-btn" data-tooltip="Pin (keep forever)" onclick="persistItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.pin}</button>`;
+
+  let actions = '';
+  if (item.type === 'text') {
+    actions = `
+      <button class="icon-btn" data-tooltip="View" onclick="viewText('${item.id}')">${ICONS.eye}</button>
+      <button class="icon-btn" data-tooltip="Copy content to clipboard" onclick="copyTextContent('${item.id}')">${ICONS.copy}</button>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'text', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyTextUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  } else if (item.mime_type && item.mime_type.startsWith('image/')) {
+    actions = `
+      <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
+      <button class="icon-btn" data-tooltip="Copy image to clipboard" onclick="copyImageToClipboard('${item.id}')">${ICONS.image}</button>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  } else {
+    actions = `
+      <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  }
+
+  return `
+    <div class="item-card">
+      ${thumb}
+      <div class="item-info">
+        <div class="item-name">${escapeHtml(item.name)}</div>
+        <div class="item-meta">
+          <span class="badge">${item.type}</span>
+          <span class="badge">${formatSize(item.size)}</span>
+          <span class="badge ${expiryClass}">${expiryText}</span>
+          <span class="badge">${item.id}</span>
+        </div>
+      </div>
+      <div class="item-actions">${actions}</div>
+    </div>
+  `;
+}
+
+function loadTextPreviews(items) {
+  items.filter(i => i.type === 'text').forEach(item => {
+    fetch(`${API}/files/${item.id}`)
+      .then(r => r.json())
+      .then(data => {
+        const el = document.getElementById(`preview-${item.id}`);
+        if (el) {
+          if (data.error) {
+            el.textContent = '(file missing)';
+            el.style.opacity = '0.4';
+          } else {
+            const preview = data.content.substring(0, 200);
+            el.textContent = preview;
+          }
+        }
+      })
+      .catch(() => {
+        const el = document.getElementById(`preview-${item.id}`);
+        if (el) { el.textContent = '(error loading)'; el.style.opacity = '0.4'; }
+      });
+  });
+}
+
+function persistItem(id, name) {
+  fetch(`${API}/files/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persistent: true })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showToast(data.error, true); return; }
+      showToast(`Pinned: ${name} (kept forever)`);
+      loadItems();
+    })
+    .catch(err => showToast('Failed to pin: ' + err, true));
+}
+
+function unpersistItem(id, name) {
+  fetch(`${API}/files/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persistent: false })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showToast(data.error, true); return; }
+      showToast(`Unpinned: ${name} (will expire in 7d)`);
+      loadPersistentItems();
+    })
+    .catch(err => showToast('Failed to unpin: ' + err, true));
 }
 
 function showToast(msg, isError) {
@@ -1892,7 +2046,12 @@ function showToast(msg, isError) {
 }
 
 // Auto-refresh every 30 seconds
-setInterval(loadItems, 30000);
+setInterval(() => {
+  loadItems();
+  if (document.getElementById('tab-persistent').classList.contains('active')) {
+    loadPersistentItems();
+  }
+}, 30000);
 
 // Initial load
 loadItems();
