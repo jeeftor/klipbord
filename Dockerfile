@@ -19,7 +19,6 @@ ENV PORT=8080
 ENV DATA_DIR=/data
 ENV BASE_URL=http://localhost:8080
 ENV MAX_UPLOAD_MB=2048
-ENV VISION_ENABLED=true
 
 RUN mkdir -p /data
 
