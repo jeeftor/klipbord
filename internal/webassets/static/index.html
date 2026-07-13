@@ -1443,24 +1443,12 @@ body {
     <div class="api-card">
       <div class="api-card-header">
         <span class="api-method GET">GET</span>
-        <span class="api-path">/f/{id}</span>
-        <span class="api-desc">Direct file access (in browser)</span>
+        <span class="api-path">/link/{id}</span>
+        <span class="api-desc">Direct item access (file, image, or text)</span>
       </div>
       <div class="api-card-body">
         <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
-        <div class="api-example"><span class="url" id="restUrl7"></span>/f/<span class="json-key">{id}</span></div>
-      </div>
-    </div>
-
-    <div class="api-card">
-      <div class="api-card-header">
-        <span class="api-method GET">GET</span>
-        <span class="api-path">/t/{id}</span>
-        <span class="api-desc">Direct text access (raw, in browser)</span>
-      </div>
-      <div class="api-card-body">
-        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
-        <div class="api-example"><span class="url" id="restUrl8"></span>/t/<span class="json-key">{id}</span></div>
+        <div class="api-example"><span class="url" id="restUrl7"></span>/link/<span class="json-key">{id}</span></div>
       </div>
     </div>
 
@@ -2284,16 +2272,14 @@ async function deleteItem(id, name) {
 }
 
 function copyUrl(id) {
-  const url = `${window.location.origin}/f/${id}`;
+  const url = `${window.location.origin}/link/${id}`;
   navigator.clipboard.writeText(url).then(() => {
     showToast(`Copied URL: ${url}`);
   });
 }
 
 function shareItem(id, type, name) {
-  const url = type === 'text'
-    ? `${window.location.origin}/t/${id}`
-    : `${window.location.origin}/f/${id}`;
+  const url = `${window.location.origin}/link/${id}`;
   if (navigator.share) {
     navigator.share({ title: name, url: url }).catch(() => {});
   } else {
@@ -2304,7 +2290,7 @@ function shareItem(id, type, name) {
 }
 
 function copyTextUrl(id) {
-  const url = `${window.location.origin}/t/${id}`;
+  const url = `${window.location.origin}/link/${id}`;
   navigator.clipboard.writeText(url).then(() => {
     showToast(`Copied URL: ${url}`);
   });
@@ -2323,7 +2309,7 @@ function copyTextContent(id) {
 }
 
 function copyImageToClipboard(id) {
-  fetch(`/f/${id}`)
+  fetch(`/link/${id}`)
     .then(r => r.blob())
     .then(blob => {
       if (!navigator.clipboard || !navigator.clipboard.write) {
@@ -2421,9 +2407,7 @@ function copyModalUrl() {
   if (!currentModalId) return;
   const item = window._currentItem;
   if (!item) return;
-  const url = item.type === 'text'
-    ? `${window.location.origin}/t/${item.id}`
-    : `${window.location.origin}/f/${item.id}`;
+  const url = `${window.location.origin}/link/${item.id}`;
   navigator.clipboard.writeText(url).then(() => showToast(`Copied: ${url}`));
 }
 
@@ -3598,8 +3582,8 @@ function loadPersistentItems() {
       });
 
       allPersistentItems = items;
-      loadTextPreviews(allPersistentItems);
       renderPersistentGrid();
+      loadTextPreviews(allPersistentItems);
     });
 }
 
@@ -3637,9 +3621,9 @@ function renderPersistentGrid() {
 function renderItemCard(item, isPersistent) {
   let thumb = '';
   if (item.type === 'text') {
-    thumb = `<div class="item-thumb"><div class="code-preview" id="preview-${item.id}">Loading...</div></div>`;
+    thumb = `<div class="item-thumb"><div class="code-preview" data-preview-id="${item.id}">Loading...</div></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
-    thumb = `<div class="item-thumb"><img src="/f/${item.id}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('/f/${item.id}')"></div>`;
+    thumb = `<div class="item-thumb"><img src="/link/${item.id}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('/link/${item.id}')"></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
@@ -3664,7 +3648,7 @@ function renderItemCard(item, isPersistent) {
     `;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
     actions = `
-      <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Open" href="/link/${item.id}" target="_blank">${ICONS.external}</a>
       <button class="icon-btn" data-tooltip="Copy image to clipboard" onclick="copyImageToClipboard('${item.id}')">${ICONS.image}</button>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
@@ -3674,7 +3658,7 @@ function renderItemCard(item, isPersistent) {
     `;
   } else {
     actions = `
-      <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Open" href="/link/${item.id}" target="_blank">${ICONS.external}</a>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
       <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
@@ -3709,7 +3693,7 @@ function renderItemCard(item, isPersistent) {
   }
 
   return `
-    <div class="item-card">
+    <div class="item-card" data-item-id="${item.id}">
       ${thumb}
       <div class="item-info">
         <div class="item-name">${escapeHtml(item.name)}</div>
@@ -3731,15 +3715,15 @@ function loadTextPreviews(items) {
     fetch(`${API}/files/${item.id}`)
       .then(r => r.json())
       .then(data => {
-        const el = document.getElementById(`preview-${item.id}`);
+        const previews = document.querySelectorAll(`[data-preview-id="${item.id}"]`);
         if (data.error) {
-          if (el) { el.textContent = '(file missing)'; el.style.opacity = '0.4'; }
+          previews.forEach(el => { el.textContent = '(file missing)'; el.style.opacity = '0.4'; });
           return;
         }
         // Cache the full content so search can match on paste content, not
         // just the truncated preview.
         textContentCache[item.id] = data.content || '';
-        if (el) {
+        previews.forEach(el => {
           const preview = data.content.substring(0, 200);
           const lang = detectLang(item.name);
           if (window.hljs) {
@@ -3752,15 +3736,17 @@ function loadTextPreviews(items) {
           } else {
             el.textContent = preview;
           }
-        }
+        });
         // If the user is actively searching, re-filter now that this item's
         // content is indexed (it may newly match or unmatch the query).
         if (document.getElementById('clipboardSearch')?.value) renderClipboardGrid();
         if (document.getElementById('persistentSearch')?.value) renderPersistentGrid();
       })
       .catch(() => {
-        const el = document.getElementById(`preview-${item.id}`);
-        if (el) { el.textContent = '(error loading)'; el.style.opacity = '0.4'; }
+        document.querySelectorAll(`[data-preview-id="${item.id}"]`).forEach(el => {
+          el.textContent = '(error loading)';
+          el.style.opacity = '0.4';
+        });
       });
   });
 }

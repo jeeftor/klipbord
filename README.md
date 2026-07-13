@@ -31,7 +31,7 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 | **Auto-expire** | Configurable TTL per item (1h, 1d, 7d, 30d, never) |
 | **Persistent Pinning** | Mark items as persistent to exempt from expiry |
 | **OpenAPI 3.0** | Machine-readable spec at `/api/openapi.json` + Swagger UI |
-| **Single Go binary** | No runtime deps. 103 tests, ~58% coverage |
+| **Single Go binary** | No runtime dependencies; built-in race-enabled test and static-analysis checks |
 
 ---
 
@@ -58,7 +58,7 @@ Then open `http://localhost:8080` — drop a file, paste an image, share a snipp
 | `PORT` | `8080` | HTTP port |
 | `DATA_DIR` | `/data` | Storage directory |
 | `BASE_URL` | `http://localhost:8080` | Public URL for generating links |
-| `MAX_UPLOAD_MB` | `100` | Max upload size in MB |
+| `MAX_UPLOAD_MB` | `2048` | Max upload size in MB |
 | `VISION_ENABLED` | `true` | Enable automatic image analysis on upload |
 | `VISION_ENDPOINT` | *(see presets)* | OpenAI-compatible vision LLM endpoint (overrides UI config) |
 | `VISION_MODEL` | *(see presets)* | Vision model name to use (overrides UI config) |
@@ -197,7 +197,7 @@ curl -X DELETE /api/prompts/{name}                       # delete (custom only)
 
 ```bash
 curl /api/health      # → {"status":"ok"}
-curl /api/version     # → {"version":"v1.14.0"}
+curl /api/version     # → {"version":"vX.Y.Z"}
 curl /api/openapi.json
 ```
 
@@ -269,8 +269,7 @@ curl /api/openapi.json
 ## Direct Links
 
 ```
-https://klipbord.example.com/f/{id}   # file
-https://klipbord.example.com/t/{id}   # text snippet
+https://klipbord.example.com/link/{id} # file, image, or text snippet
 ```
 
 ---

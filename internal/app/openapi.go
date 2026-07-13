@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"encoding/json"
@@ -61,7 +61,7 @@ func buildOpenAPISpec() map[string]interface{} {
 						{"name": "id", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}},
 					},
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"persistent": map[string]interface{}{"type": "boolean"}}}}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Item updated"}},
+					"responses":   map[string]interface{}{"200": map[string]interface{}{"description": "Item updated"}},
 				},
 			},
 			"/api/upload": map[string]interface{}{
@@ -90,18 +90,18 @@ func buildOpenAPISpec() map[string]interface{} {
 				"post": map[string]interface{}{
 					"summary": "Upload a chunk (multipart: upload_id, chunk_index, chunk)",
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"multipart/form-data": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{
-						"upload_id":    map[string]interface{}{"type": "string"},
-						"chunk_index":  map[string]interface{}{"type": "integer"},
-						"chunk":        map[string]interface{}{"type": "string", "format": "binary"},
+						"upload_id":   map[string]interface{}{"type": "string"},
+						"chunk_index": map[string]interface{}{"type": "integer"},
+						"chunk":       map[string]interface{}{"type": "string", "format": "binary"},
 					}}}}},
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Chunk received"}},
 				},
 			},
 			"/api/upload/complete": map[string]interface{}{
 				"post": map[string]interface{}{
-					"summary": "Finalize chunked upload (reassembles file)",
+					"summary":     "Finalize chunked upload (reassembles file)",
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"upload_id": map[string]interface{}{"type": "string"}}}}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Upload complete"}},
+					"responses":   map[string]interface{}{"200": map[string]interface{}{"description": "Upload complete"}},
 				},
 			},
 			"/api/upload/status/{upload_id}": map[string]interface{}{
@@ -134,6 +134,15 @@ func buildOpenAPISpec() map[string]interface{} {
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Raw text content", "content": map[string]interface{}{"text/plain": map[string]interface{}{"schema": map[string]interface{}{"type": "string"}}}}},
 				},
 			},
+			"/link/{id}": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary": "Open a stored file, image, or text snippet",
+					"parameters": []map[string]interface{}{
+						{"name": "id", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}},
+					},
+					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Stored item content"}},
+				},
+			},
 			"/api/analyze/{id}": map[string]interface{}{
 				"post": map[string]interface{}{
 					"summary": "Trigger vision analysis on an image",
@@ -146,7 +155,7 @@ func buildOpenAPISpec() map[string]interface{} {
 			},
 			"/api/prompts": map[string]interface{}{
 				"get": map[string]interface{}{
-					"summary": "List all vision prompts (built-in and custom)",
+					"summary":   "List all vision prompts (built-in and custom)",
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "List of prompts"}},
 				},
 				"post": map[string]interface{}{
@@ -161,12 +170,12 @@ func buildOpenAPISpec() map[string]interface{} {
 			},
 			"/api/prompts/{name}": map[string]interface{}{
 				"get": map[string]interface{}{
-					"summary": "Get a specific prompt",
+					"summary":    "Get a specific prompt",
 					"parameters": []map[string]interface{}{{"name": "name", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Prompt details"}},
+					"responses":  map[string]interface{}{"200": map[string]interface{}{"description": "Prompt details"}},
 				},
 				"put": map[string]interface{}{
-					"summary": "Update a prompt (built-in or custom)",
+					"summary":    "Update a prompt (built-in or custom)",
 					"parameters": []map[string]interface{}{{"name": "name", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}}},
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{
 						"description": map[string]interface{}{"type": "string"},
@@ -175,29 +184,29 @@ func buildOpenAPISpec() map[string]interface{} {
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Prompt updated"}},
 				},
 				"delete": map[string]interface{}{
-					"summary": "Delete a custom prompt (built-ins cannot be deleted)",
+					"summary":    "Delete a custom prompt (built-ins cannot be deleted)",
 					"parameters": []map[string]interface{}{{"name": "name", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Prompt deleted"}},
+					"responses":  map[string]interface{}{"200": map[string]interface{}{"description": "Prompt deleted"}},
 				},
 			},
 			"/api/config/vision": map[string]interface{}{
 				"get": map[string]interface{}{
-					"summary": "Get vision configuration (presets, active, enabled)",
+					"summary":   "Get vision configuration (presets, active, enabled)",
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Vision config"}},
 				},
 			},
 			"/api/config/vision/active": map[string]interface{}{
 				"post": map[string]interface{}{
-					"summary": "Set active vision preset",
+					"summary":     "Set active vision preset",
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"preset": map[string]interface{}{"type": "string"}}}}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Active preset changed"}},
+					"responses":   map[string]interface{}{"200": map[string]interface{}{"description": "Active preset changed"}},
 				},
 			},
 			"/api/config/vision/enabled": map[string]interface{}{
 				"post": map[string]interface{}{
-					"summary": "Enable/disable vision processing",
+					"summary":     "Enable/disable vision processing",
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"enabled": map[string]interface{}{"type": "boolean"}}}}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Vision enabled toggled"}},
+					"responses":   map[string]interface{}{"200": map[string]interface{}{"description": "Vision enabled toggled"}},
 				},
 			},
 			"/api/config/vision/presets": map[string]interface{}{
@@ -210,16 +219,16 @@ func buildOpenAPISpec() map[string]interface{} {
 			},
 			"/api/config/vision/test": map[string]interface{}{
 				"post": map[string]interface{}{
-					"summary": "Test connectivity to a vision preset (text-only, no image)",
+					"summary":     "Test connectivity to a vision preset (text-only, no image)",
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"preset": map[string]interface{}{"type": "string"}}}}}},
-					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Test result"}},
+					"responses":   map[string]interface{}{"200": map[string]interface{}{"description": "Test result"}},
 				},
 			},
 			"/api/vision/test": map[string]interface{}{
 				"post": map[string]interface{}{
 					"summary": "Run full vision pipeline on a built-in sample image",
 					"requestBody": map[string]interface{}{"content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"image_type": map[string]interface{}{"type": "string", "description": "terminal (default), code, document, diagram, screenshot"},
-					"prompt":     map[string]interface{}{"type": "string", "description": "Prompt name override (default: matches image_type)"}}}}}},
+						"prompt": map[string]interface{}{"type": "string", "description": "Prompt name override (default: matches image_type)"}}}}}},
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Vision analysis result with extracted text"}},
 				},
 			},

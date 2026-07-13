@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"os"
@@ -13,6 +13,7 @@ func setupTestDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	dataDir = dir
+	assets = Assets{IndexHTML: []byte("<html><body>Klipbord {{VERSION}}</body></html>")}
 	// Create subdirectories
 	for _, d := range []string{textDir, fileDir, chunkDir} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0755); err != nil {
@@ -33,27 +34,27 @@ func teardownTestDir(t *testing.T, dir string) {
 
 func makeItem(id, name, itemType string) Item {
 	return Item{
-		ID:        id,
-		Name:      name,
-		Type:      itemType,
-		MimeType:  "text/plain",
-		Size:      100,
-		Created:   time.Now(),
-		Expires:   time.Now().Add(7 * 24 * time.Hour),
-		TTL:       "7d",
+		ID:       id,
+		Name:     name,
+		Type:     itemType,
+		MimeType: "text/plain",
+		Size:     100,
+		Created:  time.Now(),
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		TTL:      "7d",
 	}
 }
 
 func makeImageItem(id, name string) Item {
 	return Item{
-		ID:        id,
-		Name:      name,
-		Type:      "file",
-		MimeType:  "image/png",
-		Size:      500,
-		Created:   time.Now(),
-		Expires:   time.Now().Add(7 * 24 * time.Hour),
-		TTL:       "7d",
+		ID:       id,
+		Name:     name,
+		Type:     "file",
+		MimeType: "image/png",
+		Size:     500,
+		Created:  time.Now(),
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		TTL:      "7d",
 	}
 }
 
@@ -126,14 +127,20 @@ func TestTTLString(t *testing.T) {
 
 func TestGenID(t *testing.T) {
 	setupTestDir(t)
-	id := genID()
+	id, err := genID()
+	if err != nil {
+		t.Fatalf("genID() returned an error: %v", err)
+	}
 	if len(id) != idLen {
 		t.Errorf("genID() length = %d, expected %d", len(id), idLen)
 	}
 	// Generate multiple IDs and check uniqueness
 	ids := make(map[string]bool)
 	for i := 0; i < 100; i++ {
-		id := genID()
+		id, err := genID()
+		if err != nil {
+			t.Fatalf("genID() returned an error: %v", err)
+		}
 		if ids[id] {
 			t.Errorf("genID() generated duplicate ID: %s", id)
 		}
@@ -224,6 +231,12 @@ func TestDeleteItem(t *testing.T) {
 		t.Error("file still exists on disk after delete")
 	}
 
+	meta = Metadata{}
+	loadMetadata()
+	if _, ok := findItem("del01"); ok {
+		t.Error("deleted item returned after metadata reload")
+	}
+
 	// Deleting non-existent should not panic
 	deleteItem("nonexistent")
 }
@@ -275,6 +288,30 @@ func TestListItems(t *testing.T) {
 	}
 }
 
+func TestListItemsCopiesAnalyses(t *testing.T) {
+	setupTestDir(t)
+	item := makeImageItem("analysis01", "image.png")
+	item.Analyses = map[string]*ItemAnalysis{
+		"default": {Status: "complete", Text: "original"},
+	}
+	addItem(item)
+
+	items := listItems()
+	items[0].Analyses["default"].Text = "modified"
+	items[0].Analyses["extra"] = &ItemAnalysis{Status: "pending"}
+
+	original, ok := findItem("analysis01")
+	if !ok {
+		t.Fatal("findItem() did not find stored item")
+	}
+	if got, want := original.Analyses["default"].Text, "original"; got != want {
+		t.Errorf("analysis text = %q, expected %q", got, want)
+	}
+	if _, exists := original.Analyses["extra"]; exists {
+		t.Error("listItems() returned a shared analyses map")
+	}
+}
+
 func TestMetadataPersistence(t *testing.T) {
 	dir := setupTestDir(t)
 	addItem(makeItem("pers01", "persist.txt", "text"))
@@ -294,20 +331,13 @@ func TestMetadataPersistence(t *testing.T) {
 	teardownTestDir(t, dir)
 }
 
-func TestItemTypePath(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"text", "t"},
-		{"file", "f"},
-		{"unknown", "f"},
-	}
-	for _, tt := range tests {
-		got := itemTypePath(tt.input)
-		if got != tt.expected {
-			t.Errorf("itemTypePath(%q) = %q, expected %q", tt.input, got, tt.expected)
-		}
+func TestLinkURL(t *testing.T) {
+	originalBaseURL := baseURL
+	baseURL = "https://klipbord.example.com"
+	t.Cleanup(func() { baseURL = originalBaseURL })
+
+	if got, want := linkURL("abc123"), "https://klipbord.example.com/link/abc123"; got != want {
+		t.Errorf("linkURL() = %q, expected %q", got, want)
 	}
 }
 
