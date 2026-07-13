@@ -121,9 +121,8 @@ var (
 	activeMatrixRun *matrixRun
 )
 
-// matrixConcurrency is the max number of parallel (image × prompt) calls per preset.
-// Keeps the server from being overwhelmed during model load/swap.
-const matrixConcurrency = 3
+// matrixConcurrency keeps matrix results comparable and avoids competing for model memory.
+const matrixConcurrency = 1
 
 // modelWarmupTimeout is how long we wait for a model to load on first request.
 var modelWarmupTimeout = 120 * time.Second
@@ -520,10 +519,11 @@ func runVisionMatrix(run *matrixRun, presets []*VisionPreset, prompts []*VisionP
 			"duration_ms", time.Since(unloadStarted).Milliseconds(),
 		)
 		sendEvent("model_unloaded", map[string]interface{}{
-			"preset":      preset.Name,
-			"status":      status,
-			"duration_ms": time.Since(unloadStarted).Milliseconds(),
-			"confirmed":   confirmed,
+			"preset":            preset.Name,
+			"status":            status,
+			"duration_ms":       time.Since(unloadStarted).Milliseconds(),
+			"total_duration_ms": time.Since(presetStarted).Milliseconds(),
+			"confirmed":         confirmed,
 		})
 	}
 
