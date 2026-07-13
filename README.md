@@ -1,24 +1,39 @@
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/jeeftor/klipbord/main/icon.svg" width="120" alt="Klipbord logo" />
+
 # Klipbord
 
-Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vision pre-processing.
+**Self-hosted clipboard for AI agents and humans alike.**
+Drop files, paste text, process images with vision LLMs — all through a slick web UI, REST API, and MCP server.
+
+[![Release](https://img.shields.io/github/v/release/jeeftor/klipbord?style=flat-square&color=2f6fed)](https://github.com/jeeftor/klipbord/releases)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fjeeftor%2Fklipbord-2f6fed?style=flat-square&logo=docker&logoColor=white)](https://github.com/jeeftor/klipbord/pkgs/container/klipbord)
+[![Go](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Tests](https://img.shields.io/github/actions/workflow/status/jeeftor/klipbord/ci.yml?style=flat-square&label=tests)](https://github.com/jeeftor/klipbord/actions)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+
+</div>
+
+---
 
 ## Features
 
-- **Web UI** — Ctrl+V image paste, drag-and-drop, text snippets, syntax highlighting, browse gallery
-- **REST API** — list, upload, download, delete, pin files and text snippets
-- **MCP Server** — 13 tool calls for AI agents (Hermes, Devin, Claude Code, etc.)
-- **Vision Pre-processing** — automatically OCR/describe uploaded images using a local or remote vision LLM
-- **Configurable Prompts** — 6 built-in vision prompt templates (terminal, code, document, diagram, screenshot, default) plus custom user-defined prompts via REST API
-- **Multi-Prompt Analysis** — analyze the same image with multiple prompts, all results stored side-by-side
-- **Preset Comparison** — run an image through all vision presets in parallel, rank results with pairwise LLM judging or heuristic scoring
-- **OpenAPI 3.0 Spec** — machine-readable API definition at `/api/openapi.json`
-- **No auth** — open access on all interfaces
-- **Auto-expire** — configurable TTL per item (1h, 1d, 7d, 30d, never)
-- **Persistent pinning** — mark items as persistent to exempt them from expiry
-- **Files on disk** — plain files, directly readable by agents with filesystem access
-- **Unique IDs** — short 6-character IDs for every item
-- **Single Go binary** — no runtime dependencies
-- **Tested** — 103 tests with 57.9% code coverage
+| | |
+|--|--|
+| **Web UI** | Ctrl+V image paste, drag-and-drop, text snippets, syntax highlighting, search |
+| **REST API** | List, upload, download, delete, pin files and text snippets |
+| **MCP Server** | 20 tool calls for AI agents (Claude Code, Hermes, Devin, etc.) |
+| **Vision Pre-processing** | Auto-OCR/describe uploaded images via any OpenAI-compatible vision LLM |
+| **Multi-Prompt Analysis** | Analyze one image with multiple prompts — all results stored side-by-side |
+| **Preset Comparison** | Run an image through all vision backends in parallel, rank with LLM judging |
+| **Client-side Search** | Search filenames, vision OCR text, and paste content across both tabs |
+| **Auto-expire** | Configurable TTL per item (1h, 1d, 7d, 30d, never) |
+| **Persistent Pinning** | Mark items as persistent to exempt from expiry |
+| **OpenAPI 3.0** | Machine-readable spec at `/api/openapi.json` + Swagger UI |
+| **Single Go binary** | No runtime deps. 103 tests, ~58% coverage |
+
+---
 
 ## Quick Start
 
@@ -29,6 +44,10 @@ docker run -d \
   -e BASE_URL=https://klipbord.example.com \
   ghcr.io/jeeftor/klipbord:latest
 ```
+
+Then open `http://localhost:8080` — drop a file, paste an image, share a snippet.
+
+---
 
 ## Configuration
 
@@ -44,220 +63,156 @@ docker run -d \
 | `VISION_ENDPOINT` | *(see presets)* | OpenAI-compatible vision LLM endpoint (overrides UI config) |
 | `VISION_MODEL` | *(see presets)* | Vision model name to use (overrides UI config) |
 
-### Vision LLM Configuration
+### Vision LLM
 
-The vision endpoint can be configured in two ways:
+Configure via the **Config tab** in the UI or via environment variables.
 
-1. **UI Config Tab** — Click the "Config" tab in the web UI to manage everything vision-related:
-   - **LLM Presets** — Create, edit, delete, and switch between named endpoint presets. Test each preset's connection with a single click.
-   - **Vision Prompts** — View, edit, add, and delete prompt templates that control how the vision model analyzes images. Built-in prompts (`default`, `terminal`, `code`, `document`, `diagram`) can be edited but not deleted.
-   - **Enable/Disable** — Toggle vision processing on or off.
+**Env vars always win** — if `VISION_ENDPOINT` or `VISION_MODEL` are set they override the UI. A locked "env" preset appears in the UI to indicate this.
 
-2. **Environment Variables** — Set `VISION_ENDPOINT` and/or `VISION_MODEL` to override the UI config. When env vars are set, an "env" preset appears in the UI and is locked as active. This is useful for Docker deployments where you want to lock the config.
+Three presets ship on first boot:
 
-**Env vars always win** — if `VISION_ENDPOINT` or `VISION_MODEL` are set, they override any UI configuration. The UI will show a banner indicating env vars are active.
+| Preset | Endpoint | Model |
+|--------|----------|-------|
+| `lemonade` | `http://localhost:13305/v1/chat/completions` | `Qwen3-VL-4B-Instruct-GGUF` |
+| `ollama` | `http://localhost:11434/v1/chat/completions` | `llama3.2-vision` |
+| `openai` | `https://api.openai.com/v1/chat/completions` | `gpt-4o-mini` |
 
-### Built-In Presets
+To disable vision entirely: `VISION_ENABLED=false`
 
-Three presets are pre-configured on first boot:
-
-| Preset | Endpoint | Model | Description |
-|--------|----------|-------|-------------|
-| `lemonade` | `http://localhost:13305/v1/chat/completions` | `Qwen3-VL-4B-Instruct-GGUF` | Local Lemonade (GPU) |
-| `ollama` | `http://localhost:11434/v1/chat/completions` | `llama3.2-vision` | Local Ollama |
-| `openai` | `https://api.openai.com/v1/chat/completions` | `gpt-4o-mini` | OpenAI cloud (requires API key) |
-
-To disable vision entirely, set `VISION_ENABLED=false` or toggle it off in the UI settings.
+---
 
 ## Vision Pre-Processing
 
-When an image is uploaded, Klipbord automatically sends it to the configured vision LLM for analysis. The analysis result (extracted text + description) is stored alongside the image and made available to AI agents via MCP tools and the REST API.
+When an image is uploaded, Klipbord automatically sends it to the configured vision LLM. The result (extracted text + description) is stored alongside the image and surfaced via MCP tools and the REST API.
 
 ### Built-In Prompts
 
 | Prompt | Use Case |
 |--------|----------|
-| `default` | General-purpose image analysis with OCR and description |
-| `terminal` | Terminal screenshots — extracts commands, output, errors with structure |
-| `code` | Code screenshots — preserves indentation, identifies language |
-| `document` | Documents/receipts — structured extraction with layout preservation |
-| `diagram` | Diagrams/charts — describes structure, connections, flow |
+| `default` | General-purpose analysis — OCR + description |
+| `terminal` | Terminal screenshots — commands, output, errors |
+| `code` | Code screenshots — preserves indentation, detects language |
+| `document` | Documents/receipts — structured layout extraction |
+| `diagram` | Diagrams/charts — structure, connections, flow |
 
 ### Custom Prompts
 
-Create, update, and delete custom vision prompts via the REST API:
-
 ```bash
-# Create a custom prompt
+# Create
 curl -X POST -H 'Content-Type: application/json' \
   -d '{"name":"ui_mockup","description":"UI mockup analysis","prompt":"Analyze this UI mockup..."}' \
   /api/prompts
 
-# List all prompts (built-in + custom)
-curl /api/prompts
-
-# Update a prompt
+# Update
 curl -X PUT -H 'Content-Type: application/json' \
-  -d '{"description":"Updated description"}' \
-  /api/prompts/ui_mockup
+  -d '{"description":"Updated"}' /api/prompts/ui_mockup
 
-# Delete a custom prompt (built-in prompts cannot be deleted)
+# Delete
 curl -X DELETE /api/prompts/ui_mockup
 ```
 
-Custom prompts are stored in `{DATA_DIR}/prompts.json` and persist across restarts.
-
 ### Multi-Prompt Analysis
 
-Each image can be analyzed with multiple prompts, with all results stored side-by-side:
-
 ```bash
-# Analyze with the "terminal" prompt
 curl -X POST /api/analyze/{id}?prompt=terminal
-
-# Analyze the same image with the "code" prompt
 curl -X POST /api/analyze/{id}?prompt=code
-
-# Both results are stored and returned in the item metadata
-curl /api/files/{id}
+curl /api/files/{id}   # both results returned in analyses field
 ```
+
+---
 
 ## REST API
 
-### Items
+<details>
+<summary><strong>Items</strong></summary>
 
 ```bash
-# List all items (optional: ?persistent=true or ?persistent=false to filter)
-curl /api/files
-
-# Upload a file
-curl -F 'file=@screenshot.png' -F 'ttl=7d' /api/upload
-
-# Download a file
-curl /api/files/{id} -o file.png
-
-# Create a text snippet
+curl /api/files                                          # list all
+curl -F 'file=@screenshot.png' -F 'ttl=7d' /api/upload  # upload file
+curl /api/files/{id} -o file.png                         # download
 curl -X POST -H 'Content-Type: application/json' \
-  -d '{"content":"hello world","name":"note.txt","ttl":"7d"}' \
-  /api/text
-
-# Get text content (returns raw text)
-curl /api/text/{id}
-
-# Delete an item
-curl -X DELETE /api/files/{id}
-
-# Pin/unpin an item (persistent items never expire)
+  -d '{"content":"hello","name":"note.txt","ttl":"7d"}' /api/text   # create text snippet
+curl /api/text/{id}                                      # get raw text
+curl -X DELETE /api/files/{id}                           # delete
 curl -X PATCH -H 'Content-Type: application/json' \
-  -d '{"persistent":true}' \
-  /api/files/{id}
+  -d '{"persistent":true}' /api/files/{id}              # pin/unpin
 ```
 
-### Vision Analysis
+</details>
+
+<details>
+<summary><strong>Vision</strong></summary>
 
 ```bash
-# Trigger analysis on an image (optional: ?prompt=terminal)
-curl -X POST /api/analyze/{id}?prompt=terminal
-
-# Analysis results are included in the item metadata returned by:
-curl /api/files/{id}
-```
-
-### Prompts
-
-```bash
-# List all prompts
-curl /api/prompts
-
-# Get a specific prompt
-curl /api/prompts/{name}
-
-# Create a custom prompt
+curl -X POST /api/analyze/{id}?prompt=terminal           # trigger analysis
+curl -X POST /api/vision/test                            # test with built-in sample
 curl -X POST -H 'Content-Type: application/json' \
-  -d '{"name":"my_prompt","description":"My prompt","prompt":"Describe..."}' \
-  /api/prompts
+  -d '{"image_type":"code"}' /api/vision/test            # test specific image type
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"image_type":"terminal"}' /api/vision/compare     # compare all presets
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"item_id":"abc123"}' /api/vision/compare          # compare using uploaded image
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"image_type":"terminal"}' /api/vision/compare-prompts  # compare all prompts
+```
 
-# Update a prompt
+</details>
+
+<details>
+<summary><strong>Vision Config</strong></summary>
+
+```bash
+curl /api/config/vision                                  # get config
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"preset":"ollama"}' /api/config/vision/active     # set active preset
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"enabled":false}' /api/config/vision/enabled      # toggle vision
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"my-llm","endpoint":"http://localhost:8080/v1/chat/completions","model":"my-model"}' \
+  /api/config/vision/presets                             # create preset
+curl -X DELETE /api/config/vision/presets/my-llm        # delete preset
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"preset":"lemonade"}' /api/config/vision/test     # test connection
+```
+
+</details>
+
+<details>
+<summary><strong>Prompts</strong></summary>
+
+```bash
+curl /api/prompts                                        # list all
+curl /api/prompts/{name}                                 # get one
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"x","description":"y","prompt":"z"}' /api/prompts   # create
 curl -X PUT -H 'Content-Type: application/json' \
-  -d '{"prompt":"Updated prompt text"}' \
-  /api/prompts/{name}
-
-# Delete a custom prompt (built-in prompts cannot be deleted)
-curl -X DELETE /api/prompts/{name}
+  -d '{"prompt":"new text"}' /api/prompts/{name}         # update
+curl -X DELETE /api/prompts/{name}                       # delete (custom only)
 ```
 
-### Health & Version
+</details>
+
+<details>
+<summary><strong>Health</strong></summary>
 
 ```bash
-curl /api/health    # → {"status":"ok"}
-curl /api/version   # → {"version":"v1.4.1"}
-```
-
-### Vision LLM Config
-
-```bash
-# Get current config (active preset, all presets, enabled state, env override status)
-curl /api/config/vision
-
-# Set active preset
-curl -X POST -H 'Content-Type: application/json' \
-  -d '{"preset":"ollama"}' \
-  /api/config/vision/active
-
-# Toggle vision enabled/disabled
-curl -X POST -H 'Content-Type: application/json' \
-  -d '{"enabled":false}' \
-  /api/config/vision/enabled
-
-# Create a preset
-curl -X POST -H 'Content-Type: application/json' \
-  -d '{"name":"my-llm","endpoint":"http://localhost:8080/v1/chat/completions","model":"my-model","api_key":"sk-...","description":"My LLM"}' \
-  /api/config/vision/presets
-
-# Update a preset
-curl -X PUT -H 'Content-Type: application/json' \
-  -d '{"endpoint":"http://new:8080/v1/chat/completions","model":"new-model"}' \
-  /api/config/vision/presets/my-llm
-
-# Delete a preset (cannot delete active or env preset)
-curl -X DELETE /api/config/vision/presets/my-llm
-
-# Test a preset's connection (sends a minimal chat request)
-curl -X POST -H 'Content-Type: application/json' \
-  -d '{"preset":"lemonade"}' \
-  /api/config/vision/test
-# → {"success":true,"message":"Connected successfully — model replied: \"OK\"","latency":"127ms","model":"...","endpoint":"..."}
-
-# Test the full vision pipeline with a built-in sample image
-curl -X POST /api/vision/test
-# → {"success":true,"message":"Vision analysis completed","latency":"2.1s","preset":"lemonade","model":"...","image_type":"terminal","prompt_used":"terminal","sample_type":"terminal","text":"...","description":"...","image_b64":"..."}
-
-# Test with a specific sample image type (uses matching prompt)
-curl -X POST -H 'Content-Type: application/json' -d '{"image_type":"code"}' /api/vision/test
-# Image types: terminal (default), code, document, diagram, screenshot
-
-# Compare all presets: run image through every preset, rank by quality
-curl -X POST -H 'Content-Type: application/json' -d '{"image_type":"terminal"}' /api/vision/compare
-# → {"total_presets":3,"success_count":2,"judge_used":"llm-pairwise","winner":"lemonade","results":[...]}
-# Judge: llm-pairwise (sends image + all results to active model for ranking) or heuristic (text length, JSON validity)
-
-# Compare using an existing uploaded image
-curl -X POST -H 'Content-Type: application/json' -d '{"item_id":"abc123"}' /api/vision/compare
-
-# Compare prompts: run one image through ALL prompts, rank by quality
-curl -X POST -H 'Content-Type: application/json' -d '{"image_type":"terminal"}' /api/vision/compare-prompts
-# → {"total_prompts":6,"success_count":6,"winner":"terminal","results":[...]}
-# Tests whether the default prompt is good enough or specialized prompts help
-
-# OpenAPI 3.0 spec (machine-readable API definition)
+curl /api/health      # → {"status":"ok"}
+curl /api/version     # → {"version":"v1.14.0"}
 curl /api/openapi.json
 ```
 
-## MCP Tools
+</details>
 
-MCP endpoint: `https://klipbord.example.com/mcp`
+---
 
-When registering the server with an MCP client, `kb` is a handy short key (e.g. `"mcpServers": {"kb": {"url": "https://klipbord.example.com/mcp"}}}`).
+## MCP Server
+
+```json
+{ "mcpServers": { "kb": { "url": "https://klipbord.example.com/mcp" } } }
+```
+
+<details>
+<summary><strong>All 20 tools</strong></summary>
 
 | Tool | Description |
 |------|-------------|
@@ -268,109 +223,83 @@ When registering the server with an MCP client, `kb` is a handy short key (e.g. 
 | `create_text` | Create a text snippet |
 | `get_text` | Get raw text snippet content |
 | `delete_file` | Delete an item |
-| `persist_file` | Pin or unpin an item (persistent items never expire) |
-| `describe_image` | Get vision analysis for an image (optional `prompt` parameter) |
-| `analyze_image` | Trigger/re-trigger vision analysis (optional `prompt` parameter) |
-| `list_prompts` | List all available vision prompts (built-in + custom) |
+| `persist_file` | Pin or unpin an item |
+| `describe_image` | Get vision analysis for an image |
+| `analyze_image` | Trigger/re-trigger vision analysis |
+| `list_prompts` | List all available vision prompts |
 | `create_prompt` | Create a new vision prompt template |
-| `update_prompt` | Update an existing prompt (built-in or custom) |
-| `delete_prompt` | Delete a custom prompt (built-ins cannot be deleted) |
-| `list_vision_presets` | List all configured vision LLM presets with active selection |
+| `update_prompt` | Update an existing prompt |
+| `delete_prompt` | Delete a custom prompt |
+| `list_vision_presets` | List all configured vision LLM presets |
 | `set_vision_preset` | Switch the active vision LLM preset |
-| `test_vision_preset` | Test connectivity to a preset (omit preset to test active) |
-| `test_vision` | Run the full vision pipeline on a built-in sample image (terminal, code, document, diagram) |
-| `compare_vision` | Run an image through ALL presets, compare & rank results (LLM judge or heuristic) |
-| `compare_prompts` | Run one image through ALL prompts, compare & rank (is default good enough?) |
+| `test_vision_preset` | Test connectivity to a preset |
+| `test_vision` | Run the full vision pipeline on a sample image |
+| `compare_vision` | Run image through ALL presets, rank results |
+| `compare_prompts` | Run image through ALL prompts, rank results |
 
-### Vision MCP Tool Examples
+</details>
+
+<details>
+<summary><strong>Example tool calls</strong></summary>
 
 ```jsonc
-// Describe an image (uses "default" prompt if not specified)
+// Describe an image
 {"name": "describe_image", "arguments": {"id": "abc123"}}
 
-// Describe with a specific prompt
+// With a specific prompt
 {"name": "describe_image", "arguments": {"id": "abc123", "prompt": "terminal"}}
 
-// Trigger analysis with a specific prompt
+// Trigger re-analysis
 {"name": "analyze_image", "arguments": {"id": "abc123", "prompt": "code"}}
 
-// List all available prompts
-{"name": "list_prompts", "arguments": {}}
+// Compare all presets on a sample image
+{"name": "compare_vision", "arguments": {"image_type": "terminal"}}
 
-// Create a custom prompt
-{"name": "create_prompt", "arguments": {"name": "receipts", "description": "Receipt OCR", "prompt": "Extract all items and totals..."}}
-
-// Update a prompt
-{"name": "update_prompt", "arguments": {"name": "default", "prompt": "New prompt text..."}}
-
-// Delete a custom prompt
-{"name": "delete_prompt", "arguments": {"name": "receipts"}}
-
-// List vision LLM presets
-{"name": "list_vision_presets", "arguments": {}}
+// Compare all prompts
+{"name": "compare_prompts", "arguments": {"image_type": "terminal"}}
 
 // Switch active preset
 {"name": "set_vision_preset", "arguments": {"preset": "ollama"}}
-
-// Test a preset's connection
-{"name": "test_vision_preset", "arguments": {"preset": "lemonade"}}
-
-// Test the active preset
-{"name": "test_vision_preset", "arguments": {}}
-
-// Run the full vision pipeline on a sample terminal image
-{"name": "test_vision", "arguments": {}}
-
-// Test with a specific sample image type (uses matching prompt)
-{"name": "test_vision", "arguments": {"image_type": "code"}}
-
-// Compare all presets: run image through every preset, rank by quality
-{"name": "compare_vision", "arguments": {"image_type": "terminal"}}
-
-// Compare using an existing uploaded image
-{"name": "compare_vision", "arguments": {"item_id": "abc123"}}
-
-// Compare prompts: run one image through ALL prompts, rank by quality
-{"name": "compare_prompts", "arguments": {"image_type": "terminal"}}
 ```
 
-## Direct Access
+</details>
 
-- Files: `https://klipbord.example.com/f/{id}`
-- Text: `https://klipbord.example.com/t/{id}`
+---
 
-## Storage
+## Direct Links
+
+```
+https://klipbord.example.com/f/{id}   # file
+https://klipbord.example.com/t/{id}   # text snippet
+```
+
+---
+
+## Storage Layout
 
 | Path | Content |
 |------|---------|
-| `{DATA_DIR}/files/` | Uploaded files (binary) |
+| `{DATA_DIR}/files/` | Uploaded files |
 | `{DATA_DIR}/text/` | Text snippets |
-| `{DATA_DIR}/chunks/` | Temporary chunked upload chunks |
-| `{DATA_DIR}/metadata.json` | Item metadata (IDs, names, MIME types, TTL, analyses) |
-| `{DATA_DIR}/prompts.json` | Custom vision prompts (built-in prompts are in code) |
+| `{DATA_DIR}/chunks/` | Chunked upload temp files |
+| `{DATA_DIR}/metadata.json` | Item metadata (IDs, names, MIME, TTL, analyses) |
+| `{DATA_DIR}/prompts.json` | Custom vision prompts |
 | `{DATA_DIR}/vision_config.json` | Vision LLM presets and active selection |
+
+---
 
 ## Development
 
-### Building
-
 ```bash
-go build -o klipbord .
-./klipbord
+make build   # go build -o klipbord .
+make run     # go run .
+make test    # go test ./...
 ```
 
-### Testing
+Tests use a mock vision server — no external LLM required. CI runs tests before building the Docker image; the `build` job is gated on `test`.
 
-```bash
-go test -v -cover ./...
-```
+---
 
-Tests use a mock vision server (no external LLM required). The test suite covers core CRUD, REST API endpoints, vision analysis, prompt management, and MCP tools.
-
-### CI
-
-GitHub Actions runs tests on every push/tag before building the Docker image. The `test` job gates the `build` job — if tests fail, no image is built.
-
-## License
-
-MIT
+<div align="center">
+MIT License &nbsp;·&nbsp; <a href="https://github.com/jeeftor/klipbord">github.com/jeeftor/klipbord</a>
+</div>
