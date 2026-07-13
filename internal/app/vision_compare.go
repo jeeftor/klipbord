@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -18,31 +18,31 @@ import (
 
 // PresetResult is the analysis result from one preset
 type PresetResult struct {
-	Preset      string                 `json:"preset"`
-	Model       string                 `json:"model"`
-	Endpoint    string                 `json:"endpoint"`
-	Success     bool                   `json:"success"`
-	Error       string                 `json:"error,omitempty"`
-	Latency     string                 `json:"latency"`
-	ImageType   string                 `json:"image_type,omitempty"`
-	Text        string                 `json:"text,omitempty"`
-	Description string                 `json:"description,omitempty"`
-	Score       float64                `json:"score"`
-	Rank        int                    `json:"rank"`
-	JudgeRationale string              `json:"judge_rationale,omitempty"`
+	Preset         string  `json:"preset"`
+	Model          string  `json:"model"`
+	Endpoint       string  `json:"endpoint"`
+	Success        bool    `json:"success"`
+	Error          string  `json:"error,omitempty"`
+	Latency        string  `json:"latency"`
+	ImageType      string  `json:"image_type,omitempty"`
+	Text           string  `json:"text,omitempty"`
+	Description    string  `json:"description,omitempty"`
+	Score          float64 `json:"score"`
+	Rank           int     `json:"rank"`
+	JudgeRationale string  `json:"judge_rationale,omitempty"`
 }
 
 // CompareResult is the full comparison response
 type CompareResult struct {
-	TotalPresets  int            `json:"total_presets"`
-	SuccessCount  int            `json:"success_count"`
-	JudgeUsed     string         `json:"judge_used"`
-	JudgeModel    string         `json:"judge_model,omitempty"`
-	Results       []PresetResult `json:"results"`
-	Winner        string         `json:"winner,omitempty"`
-	ImageB64      string         `json:"image_b64,omitempty"`
-	PromptUsed    string         `json:"prompt_used"`
-	SampleType    string         `json:"sample_type,omitempty"`
+	TotalPresets int            `json:"total_presets"`
+	SuccessCount int            `json:"success_count"`
+	JudgeUsed    string         `json:"judge_used"`
+	JudgeModel   string         `json:"judge_model,omitempty"`
+	Results      []PresetResult `json:"results"`
+	Winner       string         `json:"winner,omitempty"`
+	ImageB64     string         `json:"image_b64,omitempty"`
+	PromptUsed   string         `json:"prompt_used"`
+	SampleType   string         `json:"sample_type,omitempty"`
 }
 
 // apiVisionCompareHandler runs an image through all presets and ranks results
@@ -437,8 +437,8 @@ func judgeResultsPairwise(imgData []byte, results []PresetResult, judge *VisionP
 
 	// Parse the ranking
 	var rankings []struct {
-		Preset   string `json:"preset"`
-		Rank     int    `json:"rank"`
+		Preset    string `json:"preset"`
+		Rank      int    `json:"rank"`
 		Rationale string `json:"rationale"`
 	}
 	if err := json.Unmarshal([]byte(content), &rankings); err != nil {

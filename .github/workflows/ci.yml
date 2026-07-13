@@ -1,11 +1,10 @@
-name: Build and Push Docker Image
+name: CI and Container Image
 
 on:
   push:
     branches: [main]
     tags: ['v*']
-  release:
-    types: [published]
+  pull_request:
 
 env:
   IMAGE_NAME: ghcr.io/jeeftor/klipbord
@@ -20,13 +19,20 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.22'
           cache: false
 
-      - name: Run tests
-        run: go test -v -cover ./...
+      - name: Check formatting
+        run: test -z "$(gofmt -l $(find . -type f -name '*.go' -not -path './.git/*'))"
+
+      - name: Run static analysis
+        run: go vet ./...
+
+      - name: Run race-enabled tests
+        run: go test -race -v -cover ./...
 
   build:
+    if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -40,11 +46,7 @@ jobs:
       - name: Set version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-            echo "tags=type=raw,value=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-            echo "latest=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
             echo "version=${TAG}" >> $GITHUB_OUTPUT
             echo "tags=type=raw,value=${TAG}" >> $GITHUB_OUTPUT
