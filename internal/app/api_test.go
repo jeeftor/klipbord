@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -33,6 +33,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, string) {
 	mux.HandleFunc("/api/prompts/", apiPromptHandler)
 	mux.HandleFunc("/api/text", apiTextHandler)
 	mux.HandleFunc("/api/text/", apiTextItemHandler)
+	mux.HandleFunc("/link/", directLinkHandler)
 	mux.HandleFunc("/api/upload", apiUploadHandler)
 	mux.HandleFunc("/api/upload/init", apiUploadInitHandler)
 	mux.HandleFunc("/api/upload/chunk/", apiUploadChunkHandler)
@@ -126,6 +127,58 @@ func TestCreateAndGetText(t *testing.T) {
 	}
 	if string(textData) != "hello world" {
 		t.Errorf("content = %q, expected 'hello world'", string(textData))
+	}
+}
+
+func TestDirectLinkServesTextAndFiles(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	textBody := strings.NewReader(`{"content":"linked text","name":"linked.txt","ttl":"7d"}`)
+	resp := doRequest(t, server, "POST", "/api/text", textBody)
+	textID := parseJSON(t, resp)["id"].(string)
+
+	resp = doRequest(t, server, "GET", "/link/"+textID, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("text link status = %d", resp.StatusCode)
+	}
+	text, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read text link: %v", err)
+	}
+	if got, want := string(text), "linked text"; got != want {
+		t.Errorf("text link body = %q, expected %q", got, want)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/plain") {
+		t.Errorf("text link Content-Type = %q", got)
+	}
+
+	fileID := "file01"
+	fileContent := []byte("linked file")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "linked.bin", Type: "file", MimeType: "application/octet-stream", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	resp = doRequest(t, server, "GET", "/link/"+fileID, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("file link status = %d", resp.StatusCode)
+	}
+	file, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read file link: %v", err)
+	}
+	if got := string(file); got != string(fileContent) {
+		t.Errorf("file link body = %q, expected %q", got, fileContent)
+	}
+
+	for _, path := range []string{"/f/" + textID, "/t/" + textID} {
+		resp = doRequest(t, server, "GET", path, nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("retired route %s status = %d, expected 404", path, resp.StatusCode)
+		}
 	}
 }
 

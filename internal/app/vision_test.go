@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"encoding/json"
@@ -129,7 +129,26 @@ func uploadTestImage(t *testing.T, server *httptest.Server, pngData []byte) stri
 	defer resp.Body.Close()
 	var result map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&result)
-	return result["id"].(string)
+	id := result["id"].(string)
+	if visionEnabled {
+		waitForAsyncAnalysis(t, id)
+	}
+	return id
+}
+
+func waitForAsyncAnalysis(t *testing.T, id string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		item, ok := findItem(id)
+		if ok {
+			if analysis, exists := item.Analyses["default"]; exists && analysis.Status != "pending" {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for async analysis of %s", id)
 }
 
 // --- Prompt tests ---

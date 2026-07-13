@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -108,10 +108,10 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Send the initial metadata so the UI can render the skeleton.
 	sendEvent("start", map[string]interface{}{
-		"total_cells":  totalCells,
-		"presets":      presetNames,
-		"image_types":  imageTypes,
-		"prompts":      promptNames,
+		"total_cells": totalCells,
+		"presets":     presetNames,
+		"image_types": imageTypes,
+		"prompts":     promptNames,
 	})
 
 	// Write all sample images to temp files once (shared across presets).

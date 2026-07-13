@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"encoding/base64"
@@ -17,25 +17,25 @@ import (
 
 // PromptTestResult is the result of running one prompt on an image
 type PromptTestResult struct {
-	Prompt      string `json:"prompt"`
-	Description string `json:"description"`
-	BuiltIn     bool   `json:"built_in"`
-	Success     bool   `json:"success"`
-	Error       string `json:"error,omitempty"`
-	Latency     string `json:"latency"`
-	ImageType   string `json:"image_type,omitempty"`
-	Text        string `json:"text,omitempty"`
-	TextDesc    string `json:"text_description,omitempty"`
-	CharCount   int    `json:"char_count"`
+	Prompt      string  `json:"prompt"`
+	Description string  `json:"description"`
+	BuiltIn     bool    `json:"built_in"`
+	Success     bool    `json:"success"`
+	Error       string  `json:"error,omitempty"`
+	Latency     string  `json:"latency"`
+	ImageType   string  `json:"image_type,omitempty"`
+	Text        string  `json:"text,omitempty"`
+	TextDesc    string  `json:"text_description,omitempty"`
+	CharCount   int     `json:"char_count"`
 	Score       float64 `json:"score"`
-	Rank        int    `json:"rank"`
+	Rank        int     `json:"rank"`
 }
 
 // PromptCompareResult is the full comparison response
 type PromptCompareResult struct {
 	ImageType    string             `json:"image_type"`
-	TotalPrompts int               `json:"total_prompts"`
-	SuccessCount int               `json:"success_count"`
+	TotalPrompts int                `json:"total_prompts"`
+	SuccessCount int                `json:"success_count"`
 	Results      []PromptTestResult `json:"results"`
 	Winner       string             `json:"winner,omitempty"`
 	ImageB64     string             `json:"image_b64"`

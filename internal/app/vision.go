@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -22,14 +22,14 @@ type visionChatRequest struct {
 }
 
 type visionChatMessage struct {
-	Role    string           `json:"role"`
+	Role    string          `json:"role"`
 	Content []visionContent `json:"content"`
 }
 
 type visionContent struct {
-	Type      string          `json:"type"`
-	Text      string          `json:"text,omitempty"`
-	ImageURL  *visionImageURL `json:"image_url,omitempty"`
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	ImageURL *visionImageURL `json:"image_url,omitempty"`
 }
 
 type visionImageURL struct {
@@ -231,7 +231,6 @@ func analyzeImageTwoPass(itemID string) {
 func analyzeImageAsync(itemID string) {
 	analyzeImageTwoPass(itemID)
 }
-
 
 // scoreVisionResult computes a simple 0-100 quality score for a vision analysis result
 func scoreVisionResult(result *visionAnalysisResult, expectedType string) float64 {
