@@ -115,9 +115,10 @@ func TestInitVisionConfigLoadsExisting(t *testing.T) {
 		t.Errorf("active = %q, expected 'custom'", visionConfig.ActivePreset)
 	}
 
-	// Default presets should be merged in
-	if _, ok := visionConfig.Presets["lemonade"]; !ok {
-		t.Error("default preset 'lemonade' not merged in")
+	// Default presets should NOT be merged in when a config file already exists —
+	// merging caused deleted presets to reappear on restart.
+	if _, ok := visionConfig.Presets["lemonade"]; ok {
+		t.Error("default preset 'lemonade' should not be merged into an existing config")
 	}
 }
 
