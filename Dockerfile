@@ -22,6 +22,10 @@ ENV MAX_UPLOAD_MB=2048
 
 RUN mkdir -p /data
 
+# Declare /data as a volume so Docker preserves it across container updates.
+# Mount a named volume or bind mount here to persist settings and uploads.
+VOLUME /data
+
 EXPOSE 8080
 
 CMD ["/klipbord"]

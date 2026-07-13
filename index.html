@@ -1654,7 +1654,10 @@ body {
       <h4>Vision Processing</h4>
       <div class="toggle-row">
         <label>Enable automatic image analysis on upload</label>
-        <div class="toggle-switch" id="visionEnabledToggle" onclick="toggleVisionEnabled()"></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="toggle-switch" id="visionEnabledToggle" onclick="markVisionEnabledDirty()"></div>
+          <button class="btn btn-primary" id="saveEnabledBtn" style="font-size:12px;padding:4px 12px" onclick="saveVisionEnabled()" disabled>Save</button>
+        </div>
       </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="testVisionBtn" onclick="testVisionPipeline()">Test Active Preset</button>
@@ -2491,9 +2494,11 @@ function renderVisionConfig() {
   // Env banner
   document.getElementById('settingsEnvBanner').style.display = env_overridden ? 'block' : 'none';
 
-  // Enabled toggle
+  // Enabled toggle — reset to server state, disable Save button
   const toggle = document.getElementById('visionEnabledToggle');
   toggle.classList.toggle('on', enabled);
+  const saveBtn = document.getElementById('saveEnabledBtn');
+  if (saveBtn) saveBtn.disabled = true;
 
   // Preset list
   const list = document.getElementById('presetList');
@@ -2573,9 +2578,14 @@ async function setActivePreset(name) {
   }
 }
 
-async function toggleVisionEnabled() {
+function markVisionEnabledDirty() {
+  document.getElementById('visionEnabledToggle').classList.toggle('on');
+  document.getElementById('saveEnabledBtn').disabled = false;
+}
+
+async function saveVisionEnabled() {
   const toggle = document.getElementById('visionEnabledToggle');
-  const newEnabled = !toggle.classList.contains('on');
+  const newEnabled = toggle.classList.contains('on');
   try {
     const resp = await fetch('/api/config/vision/enabled', {
       method: 'POST',
@@ -2583,14 +2593,14 @@ async function toggleVisionEnabled() {
       body: JSON.stringify({ enabled: newEnabled })
     });
     if (resp.ok) {
-      toggle.classList.toggle('on', newEnabled);
+      document.getElementById('saveEnabledBtn').disabled = true;
       showToast(newEnabled ? 'Vision processing enabled' : 'Vision processing disabled');
     } else {
       const err = await resp.json();
-      showToast(err.error || 'Failed to toggle', true);
+      showToast(err.error || 'Failed to save', true);
     }
   } catch (e) {
-    showToast('Failed to toggle vision enabled', true);
+    showToast('Failed to save settings', true);
   }
 }
 
