@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // VisionPreset is a named LLM endpoint configuration
@@ -389,6 +392,35 @@ func apiVisionConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle /api/config/vision/test
+	if path == "/test" {
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Preset string `json:"preset"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
+			return
+		}
+		var preset *VisionPreset
+		if req.Preset == "" {
+			preset = getActiveVisionPreset()
+		} else {
+			p, ok := getVisionPreset(req.Preset)
+			if !ok {
+				http.Error(w, fmt.Sprintf(`{"error":"preset %q not found"}`, req.Preset), http.StatusNotFound)
+				return
+			}
+			preset = p
+		}
+		result := testVisionPreset(preset)
+		writeJSON(w, result)
+		return
+	}
+
 	// Handle /api/config/vision/presets and /api/config/vision/presets/{name}
 	if strings.HasPrefix(path, "/presets") {
 		presetPath := strings.TrimPrefix(path, "/presets")
@@ -486,4 +518,83 @@ func apiVisionConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.NotFound(w, r)
+}
+
+// testVisionResult is the response from a connection test
+type testVisionResult struct {
+	Success  bool   `json:"success"`
+	Message  string `json:"message"`
+	Latency  string `json:"latency,omitempty"`
+	Model    string `json:"model,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+}
+
+// testVisionPreset sends a minimal text-only chat request to verify the endpoint is reachable
+// and the model responds. No image is needed — just a "Hello" prompt.
+func testVisionPreset(p *VisionPreset) *testVisionResult {
+	result := &testVisionResult{
+		Model:    p.Model,
+		Endpoint: p.Endpoint,
+	}
+
+	reqBody := map[string]interface{}{
+		"model": p.Model,
+		"messages": []map[string]string{
+			{"role": "user", "content": "Reply with exactly: OK"},
+		},
+		"max_tokens": 10,
+	}
+	bodyJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		result.Message = fmt.Sprintf("Failed to build request: %v", err)
+		return result
+	}
+
+	req, err := http.NewRequest("POST", p.Endpoint, bytes.NewReader(bodyJSON))
+	if err != nil {
+		result.Message = fmt.Sprintf("Failed to create request: %v", err)
+		return result
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if p.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	}
+
+	start := time.Now()
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	latency := time.Since(start)
+	result.Latency = latency.Round(time.Millisecond).String()
+
+	if err != nil {
+		result.Message = fmt.Sprintf("Connection failed: %v", err)
+		return result
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		result.Message = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return result
+	}
+
+	var chatResp visionChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
+		result.Message = fmt.Sprintf("Bad response format: %v", err)
+		return result
+	}
+
+	if chatResp.Error != nil {
+		result.Message = fmt.Sprintf("API error: %s", chatResp.Error.Message)
+		return result
+	}
+
+	if len(chatResp.Choices) == 0 {
+		result.Message = "API returned no choices"
+		return result
+	}
+
+	result.Success = true
+	result.Message = fmt.Sprintf("Connected successfully — model replied: %q", chatResp.Choices[0].Message.Content)
+	return result
 }

@@ -16,7 +16,7 @@ Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vi
 - **Files on disk** — plain files, directly readable by agents with filesystem access
 - **Unique IDs** — short 6-character IDs for every item
 - **Single Go binary** — no runtime dependencies
-- **Tested** — 64 tests with 48.8% code coverage
+- **Tested** — 69 tests with 50.3% code coverage
 
 ## Quick Start
 
@@ -216,6 +216,12 @@ curl -X PUT -H 'Content-Type: application/json' \
 
 # Delete a preset (cannot delete active or env preset)
 curl -X DELETE /api/config/vision/presets/my-llm
+
+# Test a preset's connection (sends a minimal chat request)
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"preset":"lemonade"}' \
+  /api/config/vision/test
+# → {"success":true,"message":"Connected successfully — model replied: \"OK\"","latency":"127ms","model":"...","endpoint":"..."}
 ```
 
 ## MCP Tools

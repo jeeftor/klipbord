@@ -2224,6 +2224,13 @@ function renderVisionConfig() {
 
     const actions = document.createElement('div');
     actions.className = 'preset-actions';
+
+    const testBtn = document.createElement('button');
+    testBtn.className = 'preset-btn';
+    testBtn.textContent = 'Test';
+    testBtn.onclick = () => testPreset(p.name, testBtn);
+    actions.appendChild(testBtn);
+
     if (!isEnv) {
       const editBtn = document.createElement('button');
       editBtn.className = 'preset-btn';
@@ -2367,6 +2374,30 @@ async function deletePreset(name) {
     }
   } catch (e) {
     showToast('Failed to delete preset', true);
+  }
+}
+
+async function testPreset(name, btn) {
+  const originalText = btn.textContent;
+  btn.textContent = 'Testing...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/config/vision/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preset: name })
+    });
+    const result = await resp.json();
+    if (result.success) {
+      showToast(`✓ ${name}: ${result.message} (${result.latency})`);
+    } else {
+      showToast(`✗ ${name}: ${result.message}`, true);
+    }
+  } catch (e) {
+    showToast(`✗ ${name}: Request failed`, true);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
   }
 }
 

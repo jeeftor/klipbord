@@ -565,3 +565,175 @@ func TestCreatePresetMissingFields(t *testing.T) {
 func newTestServer(mux *http.ServeMux) *httptest.Server {
 	return httptest.NewServer(mux)
 }
+
+// --- Vision preset test endpoint ---
+
+func TestVisionPresetTestSuccess(t *testing.T) {
+	dir := setupConfigTestDir(t)
+	initVisionConfig()
+
+	// Mock vision LLM server that responds to chat completions
+	mockLLM := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":"OK"}}]}`))
+	}))
+	defer mockLLM.Close()
+
+	// Update the lemonade preset to point at our mock
+	updateVisionPreset("lemonade", mockLLM.URL+"/v1/chat/completions", "test-model", "", "")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
+	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
+	server := newTestServer(mux)
+	defer server.Close()
+	defer teardownTestDir(t, dir)
+
+	body := strings.NewReader(`{"preset":"lemonade"}`)
+	resp, err := http.Post(server.URL+"/api/config/vision/test", "application/json", body)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d", resp.StatusCode)
+	}
+	var result testVisionResult
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result.Success {
+		t.Errorf("expected success=true, got: %s", result.Message)
+	}
+	if result.Latency == "" {
+		t.Error("expected non-empty latency")
+	}
+}
+
+func TestVisionPresetTestFailure(t *testing.T) {
+	dir := setupConfigTestDir(t)
+	initVisionConfig()
+
+	// Mock server that returns 500
+	mockLLM := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"model not found"}`, http.StatusInternalServerError)
+	}))
+	defer mockLLM.Close()
+
+	updateVisionPreset("lemonade", mockLLM.URL+"/v1/chat/completions", "bad-model", "", "")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
+	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
+	server := newTestServer(mux)
+	defer server.Close()
+	defer teardownTestDir(t, dir)
+
+	body := strings.NewReader(`{"preset":"lemonade"}`)
+	resp, err := http.Post(server.URL+"/api/config/vision/test", "application/json", body)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	// The test endpoint always returns 200 with success=false on failure
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, expected 200", resp.StatusCode)
+	}
+	var result testVisionResult
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if result.Success {
+		t.Error("expected success=false")
+	}
+	if result.Message == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestVisionPresetTestConnectionRefused(t *testing.T) {
+	dir := setupConfigTestDir(t)
+	initVisionConfig()
+
+	// Point at a port that's not listening
+	updateVisionPreset("lemonade", "http://127.0.0.1:1/v1/chat/completions", "test-model", "", "")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
+	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
+	server := newTestServer(mux)
+	defer server.Close()
+	defer teardownTestDir(t, dir)
+
+	body := strings.NewReader(`{"preset":"lemonade"}`)
+	resp, err := http.Post(server.URL+"/api/config/vision/test", "application/json", body)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result testVisionResult
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if result.Success {
+		t.Error("expected success=false for connection refused")
+	}
+	if result.Message == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestVisionPresetTestNotFound(t *testing.T) {
+	dir := setupConfigTestDir(t)
+	initVisionConfig()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
+	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
+	server := newTestServer(mux)
+	defer server.Close()
+	defer teardownTestDir(t, dir)
+
+	body := strings.NewReader(`{"preset":"nonexistent"}`)
+	resp, err := http.Post(server.URL+"/api/config/vision/test", "application/json", body)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, expected 404", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestVisionPresetTestActiveDefault(t *testing.T) {
+	dir := setupConfigTestDir(t)
+	initVisionConfig()
+
+	// Mock LLM
+	mockLLM := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":"OK"}}]}`))
+	}))
+	defer mockLLM.Close()
+
+	// Update active preset (lemonade is default active)
+	updateVisionPreset("lemonade", mockLLM.URL+"/v1/chat/completions", "test-model", "", "")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
+	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
+	server := newTestServer(mux)
+	defer server.Close()
+	defer teardownTestDir(t, dir)
+
+	// No preset specified — should test the active one
+	body := strings.NewReader(`{}`)
+	resp, err := http.Post(server.URL+"/api/config/vision/test", "application/json", body)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result testVisionResult
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result.Success {
+		t.Errorf("expected success=true for active preset, got: %s", result.Message)
+	}
+}
