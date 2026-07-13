@@ -31,7 +31,7 @@ type MatrixPresetResult struct {
 	Successes int                               `json:"successes"`
 }
 
-// MatrixResult is the full response from POST /api/vision/test-matrix.
+// MatrixResult is the final summary sent in the "done" SSE event.
 type MatrixResult struct {
 	Presets    []string             `json:"presets"`
 	ImageTypes []string             `json:"image_types"`
@@ -41,24 +41,42 @@ type MatrixResult struct {
 	Successes  int                  `json:"successes"`
 }
 
+// matrixConcurrency is the max number of parallel (image × prompt) calls per preset.
+// Keeps the server from being overwhelmed during model load/swap.
+const matrixConcurrency = 3
+
+// modelWarmupTimeout is how long we wait for a model to load on first request.
+const modelWarmupTimeout = 120 * time.Second
+
 var allSampleImageTypes = []string{"terminal", "code", "document", "diagram", "screenshot"}
 
-// apiVisionTestMatrixHandler handles POST /api/vision/test-matrix.
-// Runs every configured preset × every built-in sample image × every configured
-// prompt. Presets are tested sequentially (one model at a time) to avoid
-// overwhelming local LLMs with concurrent load; prompts × images within a
-// preset are parallelised. After each preset is done, an Ollama-compatible
-// keep_alive=0 request is attempted to unload the model from memory.
+// apiVisionTestMatrixHandler streams matrix progress as Server-Sent Events.
+// GET /api/vision/test-matrix
 func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
+
+	sendEvent := func(eventType string, data interface{}) {
+		b, _ := json.Marshal(data)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, b)
+		flusher.Flush()
+	}
+
 	if !visionEnabled {
-		writeJSON(w, map[string]interface{}{
-			"success": false,
-			"message": "vision processing is disabled",
-		})
+		sendEvent("error", map[string]string{"message": "vision processing is disabled"})
 		return
 	}
 
@@ -66,11 +84,11 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 	prompts := listPromptsSorted()
 
 	if len(presets) == 0 {
-		http.Error(w, `{"error":"no presets configured"}`, http.StatusBadRequest)
+		sendEvent("error", map[string]string{"message": "no presets configured"})
 		return
 	}
 	if len(prompts) == 0 {
-		http.Error(w, `{"error":"no prompts configured"}`, http.StatusBadRequest)
+		sendEvent("error", map[string]string{"message": "no prompts configured"})
 		return
 	}
 
@@ -88,8 +106,13 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("vision matrix: %d presets × %d images × %d prompts = %d cells",
 		len(presets), len(imageTypes), len(prompts), totalCells)
 
-	var allResults []MatrixPresetResult
-	totalSuccesses := 0
+	// Send the initial metadata so the UI can render the skeleton.
+	sendEvent("start", map[string]interface{}{
+		"total_cells":  totalCells,
+		"presets":      presetNames,
+		"image_types":  imageTypes,
+		"prompts":      promptNames,
+	})
 
 	// Write all sample images to temp files once (shared across presets).
 	type tempImg struct {
@@ -114,9 +137,64 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Process presets sequentially.
-	for _, preset := range presets {
+	var allResults []MatrixPresetResult
+	totalSuccesses := 0
+
+	for pi, preset := range presets {
 		log.Printf("vision matrix: running preset %q (%s)", preset.Name, preset.Model)
+
+		sendEvent("preset_start", map[string]interface{}{
+			"preset": preset.Name,
+			"model":  preset.Model,
+			"index":  pi,
+			"total":  len(presets),
+		})
+
+		// Warmup: wait for the model to load before firing parallel cells.
+		modelReady := warmupModel(preset, func(attempt, maxAttempts int, err string) {
+			sendEvent("model_wait", map[string]interface{}{
+				"preset":       preset.Name,
+				"attempt":      attempt,
+				"max_attempts": maxAttempts,
+				"error":        err,
+			})
+		})
+
+		if !modelReady {
+			log.Printf("vision matrix: preset %q failed to warm up, skipping", preset.Name)
+			sendEvent("preset_failed", map[string]interface{}{
+				"preset":  preset.Name,
+				"message": "model did not become ready within timeout",
+			})
+			// Still add a result so the UI shows 0/N for this preset.
+			pr := MatrixPresetResult{
+				Preset:   preset.Name,
+				Model:    preset.Model,
+				Endpoint: preset.Endpoint,
+				Cells:    make(map[string]map[string]*MatrixCell),
+			}
+			for _, imgType := range imageTypes {
+				for _, p := range prompts {
+					if pr.Cells[imgType] == nil {
+						pr.Cells[imgType] = make(map[string]*MatrixCell)
+					}
+					pr.Cells[imgType][p.Name] = &MatrixCell{Error: "model warmup failed"}
+					pr.TotalRuns++
+					sendEvent("cell_complete", map[string]interface{}{
+						"preset": preset.Name, "image": imgType, "prompt": p.Name,
+						"success": false, "duration_ms": int64(0), "error": "model warmup failed",
+					})
+				}
+			}
+			allResults = append(allResults, pr)
+			continue
+		}
+
+		sendEvent("model_ready", map[string]interface{}{
+			"preset": preset.Name,
+			"model":  preset.Model,
+		})
+
 		pr := MatrixPresetResult{
 			Preset:   preset.Name,
 			Model:    preset.Model,
@@ -124,7 +202,8 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 			Cells:    make(map[string]map[string]*MatrixCell),
 		}
 
-		// Parallel execution within this preset.
+		// Semaphore for concurrency limit within this preset.
+		sem := make(chan struct{}, matrixConcurrency)
 		var mu sync.Mutex
 		var wg sync.WaitGroup
 
@@ -137,7 +216,11 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 				wg.Add(1)
 				go func(imgT string, p *VisionPrompt, tmpID string) {
 					defer wg.Done()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+
 					cell := runMatrixCell(tmpID, preset, p)
+
 					mu.Lock()
 					if pr.Cells[imgT] == nil {
 						pr.Cells[imgT] = make(map[string]*MatrixCell)
@@ -148,7 +231,17 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 						pr.Successes++
 					}
 					mu.Unlock()
-				}(imgType, prompt, t.id) // prompt is *VisionPrompt from listPromptsSorted
+
+					// Stream cell result immediately.
+					sendEvent("cell_complete", map[string]interface{}{
+						"preset":      preset.Name,
+						"image":       imgT,
+						"prompt":      p.Name,
+						"success":     cell.Success,
+						"duration_ms": cell.DurationMs,
+						"error":       cell.Error,
+					})
+				}(imgType, prompt, t.id)
 			}
 		}
 		wg.Wait()
@@ -156,11 +249,18 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 		allResults = append(allResults, pr)
 		totalSuccesses += pr.Successes
 
-		// Attempt to unload the model from memory (Ollama-compatible).
+		sendEvent("preset_complete", map[string]interface{}{
+			"preset":    preset.Name,
+			"successes": pr.Successes,
+			"total":     pr.TotalRuns,
+		})
+
+		// Attempt to unload the model; give it a moment to settle first.
+		time.Sleep(2 * time.Second)
 		go tryUnloadModel(preset)
 	}
 
-	writeJSON(w, MatrixResult{
+	sendEvent("done", MatrixResult{
 		Presets:    presetNames,
 		ImageTypes: imageTypes,
 		Prompts:    promptNames,
@@ -168,6 +268,52 @@ func apiVisionTestMatrixHandler(w http.ResponseWriter, r *http.Request) {
 		TotalCells: totalCells,
 		Successes:  totalSuccesses,
 	})
+}
+
+// warmupModel sends a lightweight request to the preset to ensure the model
+// is loaded before we fire parallel cells. Returns true if the model responded
+// successfully within the timeout.
+func warmupModel(preset *VisionPreset, onWait func(attempt, max int, errMsg string)) bool {
+	const maxAttempts = 8
+	const retryDelay = 5 * time.Second
+
+	reqBody := map[string]interface{}{
+		"model":      preset.Model,
+		"messages":   []map[string]string{{"role": "user", "content": "Ready?"}},
+		"max_tokens": 5,
+	}
+	bodyJSON, _ := json.Marshal(reqBody)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, err := http.NewRequest("POST", preset.Endpoint, bytes.NewReader(bodyJSON))
+		if err != nil {
+			onWait(attempt, maxAttempts, err.Error())
+			time.Sleep(retryDelay)
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if preset.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+preset.APIKey)
+		}
+
+		client := &http.Client{Timeout: modelWarmupTimeout}
+		resp, err := client.Do(req)
+		if err != nil {
+			onWait(attempt, maxAttempts, err.Error())
+			time.Sleep(retryDelay)
+			continue
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			log.Printf("vision matrix: preset %q ready (attempt %d)", preset.Name, attempt)
+			return true
+		}
+		onWait(attempt, maxAttempts, fmt.Sprintf("HTTP %d", resp.StatusCode))
+		time.Sleep(retryDelay)
+	}
+	return false
 }
 
 // runMatrixCell runs one (preset × image × prompt) and returns a MatrixCell.
@@ -198,8 +344,7 @@ func runMatrixCell(tmpID string, preset *VisionPreset, prompt *VisionPrompt) *Ma
 }
 
 // tryUnloadModel sends an Ollama-compatible keep_alive=0 request to ask the
-// server to evict the model from memory. Fails silently — not all backends
-// support this.
+// server to evict the model from memory. Fails silently.
 func tryUnloadModel(preset *VisionPreset) {
 	body := map[string]interface{}{
 		"model":      preset.Model,

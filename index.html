@@ -3046,87 +3046,164 @@ function renderVisionCompareResultHTML(result) {
   return html;
 }
 
-async function testVisionMatrix() {
+// Live matrix state used across SSE event handlers.
+let _matrixMeta = null; // {presets, image_types, prompts, total_cells}
+let _matrixCounts = {};  // preset → {done, success}
+
+function testVisionMatrix() {
   const btn = document.getElementById('testMatrixBtn');
   const resultDiv = document.getElementById('visionMatrixResult');
-  const originalText = btn.textContent;
   btn.textContent = 'Running matrix…';
   btn.disabled = true;
-  resultDiv.style.display = 'none';
-  try {
-    const resp = await fetch('/api/vision/test-matrix', { method: 'POST' });
-    const result = await resp.json();
-    if (!resp.ok) {
-      resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ ${escapeHtml(result.error || 'Request failed')}</div>`;
-      resultDiv.style.display = 'block';
-      return;
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = `<div style="border:1px solid var(--border);border-radius:8px;padding:16px;background:var(--bg-card);color:var(--text-muted);font-size:13px">Connecting…</div>`;
+
+  _matrixMeta = null;
+  _matrixCounts = {};
+
+  const es = new EventSource('/api/vision/test-matrix');
+
+  es.addEventListener('start', e => {
+    _matrixMeta = JSON.parse(e.data);
+    resultDiv.innerHTML = buildMatrixSkeleton(_matrixMeta);
+    updateMatrixHeader(0, _matrixMeta.total_cells);
+  });
+
+  es.addEventListener('preset_start', e => {
+    const d = JSON.parse(e.data);
+    _matrixCounts[d.preset] = { done: 0, success: 0, total: (_matrixMeta?.image_types?.length || 5) * (_matrixMeta?.prompts?.length || 6) };
+    setPresetStatus(d.preset, `⟳ Loading ${escapeHtml(d.model)}…`, '#f0a500');
+  });
+
+  es.addEventListener('model_wait', e => {
+    const d = JSON.parse(e.data);
+    setPresetStatus(d.preset, `⟳ Waiting for model (attempt ${d.attempt}/${d.max_attempts})…`, '#f0a500');
+  });
+
+  es.addEventListener('model_ready', e => {
+    const d = JSON.parse(e.data);
+    setPresetStatus(d.preset, `✓ Model ready — running cells…`, 'var(--success)');
+  });
+
+  es.addEventListener('preset_failed', e => {
+    const d = JSON.parse(e.data);
+    setPresetStatus(d.preset, `✗ ${escapeHtml(d.message)}`, '#f87171');
+  });
+
+  es.addEventListener('cell_complete', e => {
+    const d = JSON.parse(e.data);
+    // Update the table cell.
+    const cellId = matrixCellId(d.preset, d.image, d.prompt);
+    const td = document.getElementById(cellId);
+    if (td) {
+      if (d.success) {
+        td.innerHTML = `<span style="color:var(--success)">✓</span> <span style="color:var(--text-muted);font-size:10px">${formatDuration(d.duration_ms)}</span>`;
+        td.title = '';
+      } else {
+        td.innerHTML = `<span style="color:#f87171" title="${escapeHtml(d.error || '')}">✗</span>`;
+        td.title = d.error || '';
+      }
     }
-    resultDiv.innerHTML = renderMatrixResultHTML(result);
-    resultDiv.style.display = 'block';
-  } catch (e) {
-    resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ Request failed: ${escapeHtml(e.message)}</div>`;
-    resultDiv.style.display = 'block';
-  } finally {
-    btn.textContent = originalText;
+    // Update counts.
+    if (_matrixCounts[d.preset]) {
+      _matrixCounts[d.preset].done++;
+      if (d.success) _matrixCounts[d.preset].success++;
+      const c = _matrixCounts[d.preset];
+      setPresetStatus(d.preset, `Running… ${c.done}/${c.total} cells (${c.success} passed)`, 'var(--accent)');
+    }
+    // Update global header.
+    const totalDone = Object.values(_matrixCounts).reduce((s, c) => s + c.done, 0);
+    const totalSuccess = Object.values(_matrixCounts).reduce((s, c) => s + c.success, 0);
+    updateMatrixHeader(totalSuccess, _matrixMeta?.total_cells || 0, totalDone);
+  });
+
+  es.addEventListener('preset_complete', e => {
+    const d = JSON.parse(e.data);
+    const pct = d.total > 0 ? Math.round(d.successes / d.total * 100) : 0;
+    const color = pct === 100 ? 'var(--success)' : pct > 50 ? '#f0a500' : '#f87171';
+    setPresetStatus(d.preset, `${d.successes}/${d.total} passed`, color);
+  });
+
+  es.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    const pct = d.total_cells > 0 ? Math.round(d.successes / d.total_cells * 100) : 0;
+    updateMatrixHeader(d.successes, d.total_cells);
+    const hdr = document.getElementById('matrixMainHeader');
+    if (hdr) hdr.textContent = `Matrix complete — ${d.successes}/${d.total_cells} cells passed (${pct}%)`;
+    btn.textContent = 'Test All Models ★';
     btn.disabled = false;
-  }
+    es.close();
+  });
+
+  es.addEventListener('error', e => {
+    try {
+      const d = JSON.parse(e.data);
+      resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ ${escapeHtml(d.message)}</div>`;
+    } catch (_) {}
+    btn.textContent = 'Test All Models ★';
+    btn.disabled = false;
+    es.close();
+  });
+
+  es.onerror = () => {
+    if (es.readyState === EventSource.CLOSED) {
+      btn.textContent = 'Test All Models ★';
+      btn.disabled = false;
+    }
+  };
 }
 
-function renderMatrixResultHTML(result) {
-  const { presets, image_types, prompts, results, total_cells, successes } = result;
-  const pct = total_cells > 0 ? Math.round(successes / total_cells * 100) : 0;
+function matrixCellId(preset, image, prompt) {
+  return 'mc-' + btoa(preset + '|' + image + '|' + prompt).replace(/[^a-zA-Z0-9]/g, '_');
+}
 
+function buildMatrixSkeleton(meta) {
+  const { presets, image_types, prompts, total_cells } = meta;
   let html = `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg-card)">`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">`;
-  html += `<div style="font-weight:600;font-size:14px">Matrix Results</div>`;
-  html += `<div style="font-size:12px;color:var(--text-muted)">${successes}/${total_cells} cells passed (${pct}%)</div>`;
+  html += `<div id="matrixMainHeader" style="font-weight:600;font-size:14px">Matrix running…</div>`;
+  html += `<div id="matrixGlobalCount" style="font-size:12px;color:var(--text-muted)">0/${total_cells}</div>`;
   html += `</div>`;
 
-  for (const pr of results) {
-    const presetPct = pr.total_runs > 0 ? Math.round(pr.successes / pr.total_runs * 100) : 0;
-    const presetColor = presetPct === 100 ? 'var(--success)' : presetPct > 50 ? '#f0a500' : '#f87171';
+  for (const preset of presets) {
     html += `<div style="margin-bottom:16px">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">`;
-    html += `<div style="font-weight:600;font-size:13px">${escapeHtml(pr.preset)} <span style="font-weight:400;font-size:11px;color:var(--text-muted)">${escapeHtml(pr.model)}</span></div>`;
-    html += `<div style="font-size:12px;color:${presetColor}">${pr.successes}/${pr.total_runs} passed</div>`;
+    html += `<div style="font-weight:600;font-size:13px" id="preset-hdr-${CSS.escape(preset)}">${escapeHtml(preset)}</div>`;
+    html += `<div id="preset-status-${CSS.escape(preset)}" style="font-size:12px;color:var(--text-muted)">Queued</div>`;
     html += `</div>`;
-
-    // Table: rows = image types, cols = prompts
     html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">`;
-    html += `<thead><tr><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">image \\ prompt</th>`;
+    html += `<thead><tr><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap">image \\ prompt</th>`;
     for (const p of prompts) {
       html += `<th style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-muted)">${escapeHtml(p)}</th>`;
     }
     html += `</tr></thead><tbody>`;
-
-    for (const imgType of image_types) {
-      html += `<tr>`;
-      html += `<td style="padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap">${escapeHtml(imgType)}</td>`;
+    for (const img of image_types) {
+      html += `<tr><td style="padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap">${escapeHtml(img)}</td>`;
       for (const p of prompts) {
-        const cell = pr.cells?.[imgType]?.[p];
-        if (!cell) {
-          html += `<td style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-muted)">—</td>`;
-        } else if (cell.success) {
-          const dur = formatDuration(cell.duration_ms);
-          const tip = cell.preview ? escapeHtml(cell.preview.substring(0, 120)) : '';
-          html += `<td style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border)" title="${tip}">`;
-          html += `<span style="color:var(--success)">✓</span> <span style="color:var(--text-muted);font-size:10px">${dur}</span>`;
-          html += `</td>`;
-        } else {
-          const tip = cell.error ? escapeHtml(cell.error) : '';
-          html += `<td style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border)" title="${tip}">`;
-          html += `<span style="color:#f87171">✗</span>`;
-          html += `</td>`;
-        }
+        const id = matrixCellId(preset, img, p);
+        html += `<td id="${id}" style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-muted)">·</td>`;
       }
       html += `</tr>`;
     }
-    html += `</tbody></table></div>`;
-    html += `</div>`;
+    html += `</tbody></table></div></div>`;
   }
-
   html += `</div>`;
   return html;
+}
+
+function setPresetStatus(preset, msg, color) {
+  const el = document.getElementById('preset-status-' + CSS.escape(preset));
+  if (el) { el.textContent = msg; el.style.color = color || 'var(--text-muted)'; }
+}
+
+function updateMatrixHeader(successes, total, done) {
+  const el = document.getElementById('matrixGlobalCount');
+  if (el) {
+    const pct = total > 0 ? Math.round(successes / total * 100) : 0;
+    el.textContent = done != null
+      ? `${done} run · ${successes} passed / ${total} total`
+      : `${successes}/${total} (${pct}%)`;
+  }
 }
 
 async function compareVisionPresets() {

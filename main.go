@@ -145,7 +145,7 @@ func main() {
 	mux.HandleFunc("/api/config/vision/models", apiVisionModelsHandler)
 	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
 	mux.HandleFunc("/api/vision/test", apiVisionTestHandler)
-	mux.HandleFunc("/api/vision/test-matrix", apiVisionTestMatrixHandler)
+	mux.HandleFunc("/api/vision/test-matrix", apiVisionTestMatrixHandler) // SSE stream (GET)
 	mux.HandleFunc("/api/vision/compare", apiVisionCompareHandler)
 	mux.HandleFunc("/api/vision/compare-prompts", apiVisionComparePromptsHandler)
 	mux.HandleFunc("/api/prompts", apiPromptsHandler)
