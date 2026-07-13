@@ -1132,6 +1132,45 @@ func TestMCPVisionTestCodeImage(t *testing.T) {
 	}
 }
 
+func TestVisionPipelineTestScreenshotImage(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"screenshot","text":"https://example.com Welcome to Example","description":"A browser screenshot"}`)
+
+	resp, err := http.Post(server.URL+"/api/vision/test", "application/json",
+		strings.NewReader(`{"image_type":"screenshot"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result["success"].(bool) {
+		t.Errorf("expected success=true, got: %v", result["message"])
+	}
+	if result["sample_type"] != "screenshot" {
+		t.Errorf("sample_type = %v", result["sample_type"])
+	}
+	if result["prompt_used"] != "screenshot" {
+		t.Errorf("prompt_used = %v, expected 'screenshot'", result["prompt_used"])
+	}
+}
+
+func TestMCPVisionTestScreenshotImage(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"screenshot","text":"https://example.com","description":"Browser"}`)
+
+	result := mcpCall(t, server, "test_vision", map[string]interface{}{
+		"image_type": "screenshot",
+	})
+
+	if result["error"] != nil {
+		t.Fatalf("test_vision returned error: %v", result["error"])
+	}
+	text := result["result"].(map[string]interface{})["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(text, "screenshot") {
+		t.Errorf("text doesn't contain 'screenshot': %s", text)
+	}
+}
+
 // --- Vision Compare Tests ---
 
 func TestVisionCompareAPI(t *testing.T) {

@@ -114,6 +114,26 @@ For architecture diagrams: describe components and their connections.
 For charts: describe the data, axes, and trends.
 Return ONLY the JSON object, no other text.`,
 	},
+	{
+		Name:        "screenshot",
+		Description: "Desktop/browser screenshot — extracts UI elements, page content, URLs, menus",
+		BuiltIn:     true,
+		Prompt: `This is a screenshot of a desktop or browser. Extract all visible content with these requirements:
+1. Identify the application (browser, terminal, IDE, file manager, etc.)
+2. Extract the URL or window title if visible
+3. List visible UI elements: menus, buttons, tabs, navigation, toolbars
+4. Extract all text content visible on the page/screen
+5. Note any dialogs, notifications, or error messages
+6. Describe the layout (header, sidebar, main content, footer)
+
+Return a JSON object:
+{
+  "image_type": "screenshot",
+  "text": "all visible text extracted verbatim — URLs, headings, buttons, labels, body text, menu items",
+  "description": "brief description of what the screenshot shows — application name, page title, and key UI elements"
+}
+Return ONLY the JSON object, no other text.`,
+	},
 }
 
 // initPrompts loads prompts from disk or initializes with built-in defaults

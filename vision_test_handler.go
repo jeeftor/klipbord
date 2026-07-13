@@ -24,6 +24,9 @@ var sampleDocumentImage []byte
 //go:embed testdata/sample_diagram.png
 var sampleDiagramImage []byte
 
+//go:embed testdata/sample_screenshot.png
+var sampleScreenshotImage []byte
+
 func getSampleImage(imageType string) ([]byte, string) {
 	switch imageType {
 	case "code":
@@ -32,6 +35,8 @@ func getSampleImage(imageType string) ([]byte, string) {
 		return sampleDocumentImage, "image/png"
 	case "diagram":
 		return sampleDiagramImage, "image/png"
+	case "screenshot":
+		return sampleScreenshotImage, "image/png"
 	default:
 		return sampleTerminalImage, "image/png"
 	}

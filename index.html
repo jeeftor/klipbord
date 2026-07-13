@@ -1571,6 +1571,7 @@ body {
           <option value="code">Code only</option>
           <option value="document">Document only</option>
           <option value="diagram">Diagram only</option>
+          <option value="screenshot">Screenshot only</option>
         </select>
         <span style="color:var(--text-muted);font-size:12px">Test runs the active preset on sample images; Compare runs all presets</span>
       </div>
@@ -2549,7 +2550,7 @@ async function testVisionPipeline() {
   resultDiv.style.display = 'none';
 
   const imageTypes = imageType === 'all'
-    ? ['terminal', 'code', 'document', 'diagram']
+    ? ['terminal', 'code', 'document', 'diagram', 'screenshot']
     : [imageType];
 
   // Show loading state with placeholders
