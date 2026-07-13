@@ -145,6 +145,7 @@ func main() {
 	mux.HandleFunc("/api/config/vision/models", apiVisionModelsHandler)
 	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
 	mux.HandleFunc("/api/vision/test", apiVisionTestHandler)
+	mux.HandleFunc("/api/vision/test-matrix", apiVisionTestMatrixHandler)
 	mux.HandleFunc("/api/vision/compare", apiVisionCompareHandler)
 	mux.HandleFunc("/api/vision/compare-prompts", apiVisionComparePromptsHandler)
 	mux.HandleFunc("/api/prompts", apiPromptsHandler)
@@ -172,7 +173,21 @@ func main() {
 	mux.HandleFunc("/f/", directFileHandler)
 	mux.HandleFunc("/t/", directTextHandler)
 
-	log.Printf("klipbord server starting on :%s (data: %s, base: %s, max upload: %dMB)", port, dataDir, baseURL, maxUploadMB)
+	activePreset := getActiveVisionPreset()
+	log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Printf("  klipbord %s", version)
+	log.Printf("  port:         %s", port)
+	log.Printf("  data dir:     %s", dataDir)
+	log.Printf("  base url:     %s", baseURL)
+	log.Printf("  max upload:   %dMB", maxUploadMB)
+	log.Printf("  vision:       enabled=%v", visionEnabled)
+	log.Printf("  vision preset:%s (%s)", activePreset.Name, activePreset.Description)
+	log.Printf("  vision model: %s", activePreset.Model)
+	log.Printf("  vision url:   %s", activePreset.Endpoint)
+	if visionEnvOverridden {
+		log.Printf("  vision:       [!] overridden by VISION_ENDPOINT/VISION_MODEL env vars")
+	}
+	log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

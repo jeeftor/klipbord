@@ -1656,21 +1656,28 @@ body {
         <label>Enable automatic image analysis on upload</label>
         <div class="toggle-switch" id="visionEnabledToggle" onclick="toggleVisionEnabled()"></div>
       </div>
-      <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="testVisionBtn" onclick="testVisionPipeline()">Test Vision Pipeline</button>
-        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="compareVisionBtn" onclick="compareVisionPresets()">Compare All Presets</button>
-        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="comparePromptsBtn" onclick="comparePrompts()">Compare All Prompts</button>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="testVisionBtn" onclick="testVisionPipeline()">Test Active Preset</button>
+        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px;background:var(--accent);font-weight:600" id="testMatrixBtn" onclick="testVisionMatrix()">Test All Models ★</button>
+        <button class="btn btn-secondary" style="font-size:13px;padding:6px 14px" id="compareVisionBtn" onclick="compareVisionPresets()">Compare Presets</button>
+        <button class="btn btn-secondary" style="font-size:13px;padding:6px 14px" id="comparePromptsBtn" onclick="comparePrompts()">Compare Prompts</button>
         <select id="testVisionType" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:13px">
           <option value="all">All Images</option>
-          <option value="terminal">Terminal only</option>
-          <option value="code">Code only</option>
-          <option value="document">Document only</option>
-          <option value="diagram">Diagram only</option>
-          <option value="screenshot">Screenshot only</option>
+          <option value="terminal">Terminal</option>
+          <option value="code">Code</option>
+          <option value="document">Document</option>
+          <option value="diagram">Diagram</option>
+          <option value="screenshot">Screenshot</option>
         </select>
-        <span style="color:var(--text-muted);font-size:12px">Test: all images through active preset | Compare Presets: one image, all presets | Compare Prompts: one image, all prompts</span>
+      </div>
+      <div style="margin-top:6px;color:var(--text-muted);font-size:11px">
+        <b>Test Active Preset</b>: all images, active model &nbsp;|&nbsp;
+        <b>Test All Models ★</b>: all models × all images × all prompts (matrix) &nbsp;|&nbsp;
+        <b>Compare Presets</b>: one image, all presets, ranked &nbsp;|&nbsp;
+        <b>Compare Prompts</b>: one image, all prompts, ranked
       </div>
       <div id="visionTestResult" style="display:none;margin-top:12px"></div>
+      <div id="visionMatrixResult" style="display:none;margin-top:12px"></div>
       <div id="visionCompareResult" style="display:none;margin-top:12px"></div>
       <div id="visionComparePromptsResult" style="display:none;margin-top:12px"></div>
     </div>
@@ -3036,6 +3043,89 @@ function renderVisionCompareResultHTML(result) {
   }
 
   html += '</div>';
+  return html;
+}
+
+async function testVisionMatrix() {
+  const btn = document.getElementById('testMatrixBtn');
+  const resultDiv = document.getElementById('visionMatrixResult');
+  const originalText = btn.textContent;
+  btn.textContent = 'Running matrix…';
+  btn.disabled = true;
+  resultDiv.style.display = 'none';
+  try {
+    const resp = await fetch('/api/vision/test-matrix', { method: 'POST' });
+    const result = await resp.json();
+    if (!resp.ok) {
+      resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ ${escapeHtml(result.error || 'Request failed')}</div>`;
+      resultDiv.style.display = 'block';
+      return;
+    }
+    resultDiv.innerHTML = renderMatrixResultHTML(result);
+    resultDiv.style.display = 'block';
+  } catch (e) {
+    resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ Request failed: ${escapeHtml(e.message)}</div>`;
+    resultDiv.style.display = 'block';
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function renderMatrixResultHTML(result) {
+  const { presets, image_types, prompts, results, total_cells, successes } = result;
+  const pct = total_cells > 0 ? Math.round(successes / total_cells * 100) : 0;
+
+  let html = `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg-card)">`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">`;
+  html += `<div style="font-weight:600;font-size:14px">Matrix Results</div>`;
+  html += `<div style="font-size:12px;color:var(--text-muted)">${successes}/${total_cells} cells passed (${pct}%)</div>`;
+  html += `</div>`;
+
+  for (const pr of results) {
+    const presetPct = pr.total_runs > 0 ? Math.round(pr.successes / pr.total_runs * 100) : 0;
+    const presetColor = presetPct === 100 ? 'var(--success)' : presetPct > 50 ? '#f0a500' : '#f87171';
+    html += `<div style="margin-bottom:16px">`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">`;
+    html += `<div style="font-weight:600;font-size:13px">${escapeHtml(pr.preset)} <span style="font-weight:400;font-size:11px;color:var(--text-muted)">${escapeHtml(pr.model)}</span></div>`;
+    html += `<div style="font-size:12px;color:${presetColor}">${pr.successes}/${pr.total_runs} passed</div>`;
+    html += `</div>`;
+
+    // Table: rows = image types, cols = prompts
+    html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">`;
+    html += `<thead><tr><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted)">image \\ prompt</th>`;
+    for (const p of prompts) {
+      html += `<th style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-muted)">${escapeHtml(p)}</th>`;
+    }
+    html += `</tr></thead><tbody>`;
+
+    for (const imgType of image_types) {
+      html += `<tr>`;
+      html += `<td style="padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap">${escapeHtml(imgType)}</td>`;
+      for (const p of prompts) {
+        const cell = pr.cells?.[imgType]?.[p];
+        if (!cell) {
+          html += `<td style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text-muted)">—</td>`;
+        } else if (cell.success) {
+          const dur = formatDuration(cell.duration_ms);
+          const tip = cell.preview ? escapeHtml(cell.preview.substring(0, 120)) : '';
+          html += `<td style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border)" title="${tip}">`;
+          html += `<span style="color:var(--success)">✓</span> <span style="color:var(--text-muted);font-size:10px">${dur}</span>`;
+          html += `</td>`;
+        } else {
+          const tip = cell.error ? escapeHtml(cell.error) : '';
+          html += `<td style="padding:4px 8px;text-align:center;border-bottom:1px solid var(--border)" title="${tip}">`;
+          html += `<span style="color:#f87171">✗</span>`;
+          html += `</td>`;
+        }
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table></div>`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
   return html;
 }
 
