@@ -328,6 +328,14 @@ var mcpTools = []MCPTool{
 			},
 		},
 	},
+	{
+		Name:        "test_vision",
+		Description: "Run the full vision pipeline on a built-in sample terminal image. Tests the entire flow: image upload → model analysis → text extraction. Returns extracted text, image type, and latency.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
 }
 
 func mcpHandler(w http.ResponseWriter, r *http.Request) {
@@ -530,6 +538,9 @@ func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError
 	case "test_vision_preset":
 		preset, _ := args["preset"].(string)
 		return mcpTestVisionPreset(preset)
+
+	case "test_vision":
+		return mcpVisionTest()
 
 	default:
 		return nil, &MCPError{Code: -32601, Message: "Unknown tool: " + name}

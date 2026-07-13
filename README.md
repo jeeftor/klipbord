@@ -16,7 +16,7 @@ Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vi
 - **Files on disk** — plain files, directly readable by agents with filesystem access
 - **Unique IDs** — short 6-character IDs for every item
 - **Single Go binary** — no runtime dependencies
-- **Tested** — 81 tests with 52.7% code coverage
+- **Tested** — 85 tests with 53.7% code coverage
 
 ## Quick Start
 
@@ -225,6 +225,10 @@ curl -X POST -H 'Content-Type: application/json' \
   -d '{"preset":"lemonade"}' \
   /api/config/vision/test
 # → {"success":true,"message":"Connected successfully — model replied: \"OK\"","latency":"127ms","model":"...","endpoint":"..."}
+
+# Test the full vision pipeline with a built-in sample image
+curl -X POST /api/vision/test
+# → {"success":true,"message":"Vision analysis completed","latency":"2.1s","preset":"lemonade","model":"...","image_type":"terminal","text":"...","description":"...","image_b64":"..."}
 ```
 
 ## MCP Tools
@@ -250,6 +254,7 @@ MCP endpoint: `https://paste.example.com/mcp`
 | `list_vision_presets` | List all configured vision LLM presets with active selection |
 | `set_vision_preset` | Switch the active vision LLM preset |
 | `test_vision_preset` | Test connectivity to a preset (omit preset to test active) |
+| `test_vision` | Run the full vision pipeline on a built-in sample terminal image |
 
 ### Vision MCP Tool Examples
 

@@ -91,6 +91,7 @@ func setupVisionTestServer(t *testing.T, mockResponse string) (*httptest.Server,
 	mux.HandleFunc("/api/prompts/", apiPromptHandler)
 	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
 	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
+	mux.HandleFunc("/api/vision/test", apiVisionTestHandler)
 	mux.HandleFunc("/api/text", apiTextHandler)
 	mux.HandleFunc("/api/text/", apiTextItemHandler)
 	mux.HandleFunc("/api/upload", apiUploadHandler)
@@ -510,7 +511,7 @@ func TestMCPToolsList(t *testing.T) {
 		tm := tool.(map[string]interface{})
 		toolNames[tm["name"].(string)] = true
 	}
-	expected := []string{"list_files", "get_file", "upload_file", "create_text", "delete_file", "persist_file", "describe_image", "analyze_image", "list_prompts", "create_prompt", "update_prompt", "delete_prompt", "list_vision_presets", "set_vision_preset", "test_vision_preset"}
+	expected := []string{"list_files", "get_file", "upload_file", "create_text", "delete_file", "persist_file", "describe_image", "analyze_image", "list_prompts", "create_prompt", "update_prompt", "delete_prompt", "list_vision_presets", "set_vision_preset", "test_vision_preset", "test_vision"}
 	for _, name := range expected {
 		if !toolNames[name] {
 			t.Errorf("tool %q not found in tools/list", name)
@@ -949,5 +950,98 @@ func TestMCPTestVisionPresetNotFound(t *testing.T) {
 	}
 	if !strings.Contains(errObj["message"].(string), "not found") {
 		t.Errorf("error message: %v", errObj["message"])
+	}
+}
+
+// --- Vision pipeline test (embedded sample image) ---
+
+func TestVisionPipelineTestAPI(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"$ echo hello\nhello world","description":"A terminal screenshot"}`)
+
+	resp, err := http.Post(server.URL+"/api/vision/test", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d", resp.StatusCode)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result["success"].(bool) {
+		t.Errorf("expected success=true, got: %v", result["message"])
+	}
+	if result["image_type"] != "terminal" {
+		t.Errorf("image_type = %v", result["image_type"])
+	}
+	if !strings.Contains(result["text"].(string), "hello") {
+		t.Errorf("text doesn't contain 'hello': %v", result["text"])
+	}
+	if result["image_b64"] == nil || result["image_b64"] == "" {
+		t.Error("image_b64 not returned")
+	}
+	if result["latency"] == nil || result["latency"] == "" {
+		t.Error("latency not returned")
+	}
+	if result["preset"] == nil || result["preset"] == "" {
+		t.Error("preset not returned")
+	}
+}
+
+func TestVisionPipelineTestDisabled(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"test","description":"test"}`)
+	visionEnabled = false
+	defer func() { visionEnabled = true }()
+
+	resp, err := http.Post(server.URL+"/api/vision/test", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if result["success"].(bool) {
+		t.Error("expected success=false when vision disabled")
+	}
+	if !strings.Contains(result["message"].(string), "disabled") {
+		t.Errorf("message should mention disabled: %v", result["message"])
+	}
+}
+
+func TestMCPVisionTest(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"$ echo hello\nhello world","description":"A terminal"}`)
+
+	result := mcpCall(t, server, "test_vision", map[string]interface{}{})
+
+	if result["error"] != nil {
+		t.Fatalf("test_vision returned error: %v", result["error"])
+	}
+	text := result["result"].(map[string]interface{})["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(text, "OK") {
+		t.Errorf("text doesn't contain 'OK': %s", text)
+	}
+	if !strings.Contains(text, "hello") {
+		t.Errorf("text doesn't contain 'hello': %s", text)
+	}
+	if !strings.Contains(text, "terminal") {
+		t.Errorf("text doesn't contain 'terminal': %s", text)
+	}
+}
+
+func TestMCPVisionTestDisabled(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"test","description":"test"}`)
+	visionEnabled = false
+	defer func() { visionEnabled = true }()
+
+	result := mcpCall(t, server, "test_vision", map[string]interface{}{})
+
+	errObj, hasErr := result["error"].(map[string]interface{})
+	if !hasErr {
+		t.Fatal("expected error when vision disabled")
+	}
+	if !strings.Contains(errObj["message"].(string), "disabled") {
+		t.Errorf("error should mention disabled: %v", errObj["message"])
 	}
 }
