@@ -1045,3 +1045,88 @@ func TestMCPVisionTestDisabled(t *testing.T) {
 		t.Errorf("error should mention disabled: %v", errObj["message"])
 	}
 }
+
+func TestVisionPipelineTestCodeImage(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"code","text":"func main()","description":"Go code"}`)
+
+	resp, err := http.Post(server.URL+"/api/vision/test", "application/json",
+		strings.NewReader(`{"image_type":"code"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result["success"].(bool) {
+		t.Errorf("expected success=true, got: %v", result["message"])
+	}
+	if result["sample_type"] != "code" {
+		t.Errorf("sample_type = %v", result["sample_type"])
+	}
+	if result["prompt_used"] != "code" {
+		t.Errorf("prompt_used = %v, expected 'code'", result["prompt_used"])
+	}
+}
+
+func TestVisionPipelineTestDocumentImage(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"document","text":"MEMORANDUM","description":"A memo"}`)
+
+	resp, err := http.Post(server.URL+"/api/vision/test", "application/json",
+		strings.NewReader(`{"image_type":"document"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result["success"].(bool) {
+		t.Errorf("expected success=true, got: %v", result["message"])
+	}
+	if result["sample_type"] != "document" {
+		t.Errorf("sample_type = %v", result["sample_type"])
+	}
+	if result["prompt_used"] != "document" {
+		t.Errorf("prompt_used = %v, expected 'document'", result["prompt_used"])
+	}
+}
+
+func TestVisionPipelineTestDiagramImage(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"diagram","text":"Start -> Process -> End","description":"A flowchart"}`)
+
+	resp, err := http.Post(server.URL+"/api/vision/test", "application/json",
+		strings.NewReader(`{"image_type":"diagram"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if !result["success"].(bool) {
+		t.Errorf("expected success=true, got: %v", result["message"])
+	}
+	if result["sample_type"] != "diagram" {
+		t.Errorf("sample_type = %v", result["sample_type"])
+	}
+	if result["prompt_used"] != "diagram" {
+		t.Errorf("prompt_used = %v, expected 'diagram'", result["prompt_used"])
+	}
+}
+
+func TestMCPVisionTestCodeImage(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"code","text":"func main()","description":"Go code"}`)
+
+	result := mcpCall(t, server, "test_vision", map[string]interface{}{
+		"image_type": "code",
+	})
+
+	if result["error"] != nil {
+		t.Fatalf("test_vision returned error: %v", result["error"])
+	}
+	text := result["result"].(map[string]interface{})["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(text, "code") {
+		t.Errorf("text doesn't contain 'code': %s", text)
+	}
+}

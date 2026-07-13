@@ -15,7 +15,29 @@ import (
 //go:embed testdata/sample_terminal.png
 var sampleTerminalImage []byte
 
-// apiVisionTestHandler runs the full vision pipeline on the embedded sample image
+//go:embed testdata/sample_code.png
+var sampleCodeImage []byte
+
+//go:embed testdata/sample_document.png
+var sampleDocumentImage []byte
+
+//go:embed testdata/sample_diagram.png
+var sampleDiagramImage []byte
+
+func getSampleImage(imageType string) ([]byte, string) {
+	switch imageType {
+	case "code":
+		return sampleCodeImage, "image/png"
+	case "document":
+		return sampleDocumentImage, "image/png"
+	case "diagram":
+		return sampleDiagramImage, "image/png"
+	default:
+		return sampleTerminalImage, "image/png"
+	}
+}
+
+// apiVisionTestHandler runs the full vision pipeline on an embedded sample image
 func apiVisionTestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -30,6 +52,42 @@ func apiVisionTestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse optional image_type from body (empty body = default/terminal)
+	imageType := "terminal"
+	if r.Body != nil {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err == nil && len(bodyBytes) > 0 {
+			var req struct {
+				ImageType string `json:"image_type"`
+			}
+			if json.Unmarshal(bodyBytes, &req) == nil && req.ImageType != "" {
+				imageType = req.ImageType
+			}
+		}
+	}
+
+	sampleData, _ := getSampleImage(imageType)
+
+	// Use matching prompt if not specified
+	promptName := imageType
+	if promptName == "terminal" {
+		promptName = "terminal"
+	}
+
+	prompt, ok := getPrompt(promptName)
+	if !ok {
+		// Fall back to default
+		prompt, ok = getPrompt("default")
+		if !ok {
+			writeJSON(w, map[string]interface{}{
+				"success": false,
+				"message": "no suitable prompt found",
+			})
+			return
+		}
+		promptName = "default"
+	}
+
 	preset := getActiveVisionPreset()
 
 	// Write the sample image to the data dir so analyzeImage can read it
@@ -38,7 +96,7 @@ func apiVisionTestHandler(w http.ResponseWriter, r *http.Request) {
 	os.MkdirAll(filepath.Dir(tmpPath), 0755)
 	defer os.Remove(tmpPath)
 
-	if err := os.WriteFile(tmpPath, sampleTerminalImage, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, sampleData, 0644); err != nil {
 		writeJSON(w, map[string]interface{}{
 			"success": false,
 			"message": fmt.Sprintf("Failed to write temp image: %v", err),
@@ -46,17 +104,7 @@ func apiVisionTestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the default prompt
-	prompt, ok := getPrompt("default")
-	if !ok {
-		writeJSON(w, map[string]interface{}{
-			"success": false,
-			"message": "default prompt not found",
-		})
-		return
-	}
-
-	// Run the analysis (synchronous, not async)
+	// Run the analysis
 	start := time.Now()
 	result, err := analyzeImage(tmpID, prompt.Prompt)
 	latency := time.Since(start)
@@ -74,23 +122,42 @@ func apiVisionTestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]interface{}{
-		"success":     true,
-		"message":     "Vision analysis completed",
-		"latency":     latency.Round(time.Millisecond).String(),
-		"preset":      preset.Name,
-		"model":       preset.Model,
-		"endpoint":    preset.Endpoint,
-		"image_type":  result.ImageType,
-		"text":        result.Text,
-		"description": result.Description,
-		"image_b64":   base64.StdEncoding.EncodeToString(sampleTerminalImage),
+		"success":      true,
+		"message":      "Vision analysis completed",
+		"latency":      latency.Round(time.Millisecond).String(),
+		"preset":       preset.Name,
+		"model":        preset.Model,
+		"endpoint":     preset.Endpoint,
+		"image_type":   result.ImageType,
+		"prompt_used":  promptName,
+		"sample_type":  imageType,
+		"text":         result.Text,
+		"description":  result.Description,
+		"image_b64":    base64.StdEncoding.EncodeToString(sampleData),
 	})
 }
 
-// mcpVisionTest runs the full vision pipeline on the embedded sample image via MCP
-func mcpVisionTest() (interface{}, *MCPError) {
+// mcpVisionTest runs the full vision pipeline on an embedded sample image via MCP
+func mcpVisionTest(imageType string) (interface{}, *MCPError) {
 	if !visionEnabled {
 		return nil, &MCPError{Code: -32603, Message: "vision processing is disabled"}
+	}
+
+	if imageType == "" {
+		imageType = "terminal"
+	}
+
+	sampleData, _ := getSampleImage(imageType)
+
+	// Use matching prompt
+	promptName := imageType
+	prompt, ok := getPrompt(promptName)
+	if !ok {
+		prompt, ok = getPrompt("default")
+		if !ok {
+			return nil, &MCPError{Code: -32603, Message: "no suitable prompt found"}
+		}
+		promptName = "default"
 	}
 
 	preset := getActiveVisionPreset()
@@ -100,13 +167,8 @@ func mcpVisionTest() (interface{}, *MCPError) {
 	os.MkdirAll(filepath.Dir(tmpPath), 0755)
 	defer os.Remove(tmpPath)
 
-	if err := os.WriteFile(tmpPath, sampleTerminalImage, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, sampleData, 0644); err != nil {
 		return nil, &MCPError{Code: -32603, Message: "failed to write temp image: " + err.Error()}
-	}
-
-	prompt, ok := getPrompt("default")
-	if !ok {
-		return nil, &MCPError{Code: -32603, Message: "default prompt not found"}
 	}
 
 	start := time.Now()
@@ -119,7 +181,8 @@ func mcpVisionTest() (interface{}, *MCPError) {
 		}, nil
 	}
 
-	text := fmt.Sprintf("Vision test OK (%s) using preset %q [%s]:\n", latency, preset.Name, preset.Model)
+	text := fmt.Sprintf("Vision test OK (%s) using preset %q [%s], prompt %q:\n", latency, preset.Name, preset.Model, promptName)
+	text += fmt.Sprintf("Sample image type: %s\n", imageType)
 	text += fmt.Sprintf("Image type: %s\n", result.ImageType)
 	text += fmt.Sprintf("Description: %s\n", result.Description)
 	text += fmt.Sprintf("Extracted text:\n%s", result.Text)
@@ -128,7 +191,3 @@ func mcpVisionTest() (interface{}, *MCPError) {
 		Content: []MCPContent{{Type: "text", Text: text}},
 	}, nil
 }
-
-// Ensure io is imported (used by analyzeImage internally)
-var _ = io.ReadAll
-var _ = json.Marshal

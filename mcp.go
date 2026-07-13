@@ -330,10 +330,15 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "test_vision",
-		Description: "Run the full vision pipeline on a built-in sample terminal image. Tests the entire flow: image upload → model analysis → text extraction. Returns extracted text, image type, and latency.",
+		Description: "Run the full vision pipeline on a built-in sample image. Tests the entire flow: image upload → model analysis → text extraction. Optionally specify image_type to match a specific prompt (terminal, code, document, diagram). Returns extracted text, image type, and latency.",
 		InputSchema: map[string]any{
-			"type":       "object",
-			"properties": map[string]any{},
+			"type": "object",
+			"properties": map[string]any{
+				"image_type": map[string]any{
+					"type":        "string",
+					"description": "Sample image type: terminal (default), code, document, or diagram. Uses the matching prompt template.",
+				},
+			},
 		},
 	},
 }
@@ -540,7 +545,8 @@ func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError
 		return mcpTestVisionPreset(preset)
 
 	case "test_vision":
-		return mcpVisionTest()
+		imageType, _ := args["image_type"].(string)
+		return mcpVisionTest(imageType)
 
 	default:
 		return nil, &MCPError{Code: -32601, Message: "Unknown tool: " + name}

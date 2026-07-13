@@ -16,7 +16,7 @@ Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vi
 - **Files on disk** — plain files, directly readable by agents with filesystem access
 - **Unique IDs** — short 6-character IDs for every item
 - **Single Go binary** — no runtime dependencies
-- **Tested** — 85 tests with 53.7% code coverage
+- **Tested** — 89 tests with 54.0% code coverage
 
 ## Quick Start
 
@@ -228,7 +228,11 @@ curl -X POST -H 'Content-Type: application/json' \
 
 # Test the full vision pipeline with a built-in sample image
 curl -X POST /api/vision/test
-# → {"success":true,"message":"Vision analysis completed","latency":"2.1s","preset":"lemonade","model":"...","image_type":"terminal","text":"...","description":"...","image_b64":"..."}
+# → {"success":true,"message":"Vision analysis completed","latency":"2.1s","preset":"lemonade","model":"...","image_type":"terminal","prompt_used":"terminal","sample_type":"terminal","text":"...","description":"...","image_b64":"..."}
+
+# Test with a specific sample image type (uses matching prompt)
+curl -X POST -H 'Content-Type: application/json' -d '{"image_type":"code"}' /api/vision/test
+# Image types: terminal (default), code, document, diagram
 ```
 
 ## MCP Tools
@@ -254,7 +258,7 @@ MCP endpoint: `https://paste.example.com/mcp`
 | `list_vision_presets` | List all configured vision LLM presets with active selection |
 | `set_vision_preset` | Switch the active vision LLM preset |
 | `test_vision_preset` | Test connectivity to a preset (omit preset to test active) |
-| `test_vision` | Run the full vision pipeline on a built-in sample terminal image |
+| `test_vision` | Run the full vision pipeline on a built-in sample image (terminal, code, document, diagram) |
 
 ### Vision MCP Tool Examples
 
@@ -291,6 +295,12 @@ MCP endpoint: `https://paste.example.com/mcp`
 
 // Test the active preset
 {"name": "test_vision_preset", "arguments": {}}
+
+// Run the full vision pipeline on a sample terminal image
+{"name": "test_vision", "arguments": {}}
+
+// Test with a specific sample image type (uses matching prompt)
+{"name": "test_vision", "arguments": {"image_type": "code"}}
 ```
 
 ## Direct Access
