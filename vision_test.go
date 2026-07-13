@@ -92,6 +92,7 @@ func setupVisionTestServer(t *testing.T, mockResponse string) (*httptest.Server,
 	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
 	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
 	mux.HandleFunc("/api/vision/test", apiVisionTestHandler)
+	mux.HandleFunc("/api/vision/compare", apiVisionCompareHandler)
 	mux.HandleFunc("/api/text", apiTextHandler)
 	mux.HandleFunc("/api/text/", apiTextItemHandler)
 	mux.HandleFunc("/api/upload", apiUploadHandler)
@@ -1128,5 +1129,178 @@ func TestMCPVisionTestCodeImage(t *testing.T) {
 	text := result["result"].(map[string]interface{})["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
 	if !strings.Contains(text, "code") {
 		t.Errorf("text doesn't contain 'code': %s", text)
+	}
+}
+
+// --- Vision Compare Tests ---
+
+func TestVisionCompareAPI(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"hello world","description":"A terminal"}`)
+
+	resp, err := http.Post(server.URL+"/api/vision/compare", "application/json",
+		strings.NewReader(`{"image_type":"terminal"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if result["total_presets"] == nil {
+		t.Fatal("expected total_presets in response")
+	}
+	// Should have results from all presets
+	results, ok := result["results"].([]interface{})
+	if !ok {
+		t.Fatal("expected results array")
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+	// Check first result has expected fields
+	first := results[0].(map[string]interface{})
+	if first["preset"] == "" {
+		t.Error("expected preset name in result")
+	}
+	if first["rank"] != float64(1) {
+		t.Errorf("expected rank=1 for first result, got %v", first["rank"])
+	}
+}
+
+func TestVisionCompareDisabled(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"test","description":"test"}`)
+	visionEnabled = false
+	defer func() { visionEnabled = true }()
+
+	resp, err := http.Post(server.URL+"/api/vision/compare", "application/json",
+		strings.NewReader(`{"image_type":"terminal"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if result["success"] != false {
+		t.Error("expected success=false when vision disabled")
+	}
+}
+
+func TestVisionCompareWithItemID(t *testing.T) {
+	server, dir, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"hello","description":"test"}`)
+
+	// Upload a test image
+	pngData := createMinimalPNG(t)
+	itemID := uploadTestImage(t, server, pngData)
+
+	_ = dir
+
+	resp, err := http.Post(server.URL+"/api/vision/compare", "application/json",
+		strings.NewReader(fmt.Sprintf(`{"item_id":"%s"}`, itemID)))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	if result["total_presets"] == nil {
+		t.Fatal("expected total_presets in response")
+	}
+}
+
+func TestVisionCompareHeuristicScoring(t *testing.T) {
+	server, _, mockServer := setupVisionTestServer(t, `{"image_type":"terminal","text":"hello world","description":"A terminal"}`)
+	_ = mockServer
+
+	// The mock server returns the same response for all presets
+	// so all should succeed and get heuristic scores
+	resp, err := http.Post(server.URL+"/api/vision/compare", "application/json",
+		strings.NewReader(`{"image_type":"terminal"}`))
+	if err != nil {
+		t.Fatalf("POST failed: %v", err)
+	}
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	resp.Body.Close()
+
+	successCount, ok := result["success_count"].(float64)
+	if !ok {
+		t.Fatal("expected success_count in response")
+	}
+	if successCount < 1 {
+		t.Error("expected at least one successful preset")
+	}
+
+	// With only one mock server, all presets point to the same endpoint
+	// so they should all succeed. Check that judge_used is set.
+	judgeUsed, _ := result["judge_used"].(string)
+	if judgeUsed == "" {
+		t.Error("expected judge_used to be set")
+	}
+}
+
+func TestMCPCompareVision(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"hello world","description":"A terminal"}`)
+
+	result := mcpCall(t, server, "compare_vision", map[string]interface{}{
+		"image_type": "terminal",
+	})
+
+	if result["error"] != nil {
+		t.Fatalf("compare_vision returned error: %v", result["error"])
+	}
+	text := result["result"].(map[string]interface{})["content"].([]interface{})[0].(map[string]interface{})["text"].(string)
+	if !strings.Contains(text, "Vision comparison") {
+		t.Errorf("text doesn't contain 'Vision comparison': %s", text)
+	}
+	if !strings.Contains(text, "Winner") {
+		t.Errorf("text should contain 'Winner': %s", text)
+	}
+}
+
+func TestMCPCompareVisionDisabled(t *testing.T) {
+	server, _, _ := setupVisionTestServer(t, `{"image_type":"terminal","text":"test","description":"test"}`)
+	visionEnabled = false
+	defer func() { visionEnabled = true }()
+
+	result := mcpCall(t, server, "compare_vision", map[string]interface{}{})
+
+	if result["error"] == nil {
+		t.Fatal("expected error when vision disabled")
+	}
+}
+
+func TestOpenAPISpec(t *testing.T) {
+	dir := setupTestDir(t)
+	defer teardownTestDir(t, dir)
+	baseURL = "http://test.local"
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/openapi.json", openapiSpecHandler)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/api/openapi.json")
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	var spec map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&spec)
+	resp.Body.Close()
+
+	if spec["openapi"] != "3.0.3" {
+		t.Errorf("expected openapi 3.0.3, got %v", spec["openapi"])
+	}
+	paths, ok := spec["paths"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected paths in spec")
+	}
+	// Check key endpoints are documented
+	for _, path := range []string{"/api/files", "/api/vision/test", "/api/vision/compare", "/health"} {
+		if _, ok := paths[path]; !ok {
+			t.Errorf("expected path %s in OpenAPI spec", path)
+		}
 	}
 }

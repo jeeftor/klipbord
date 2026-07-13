@@ -6,17 +6,19 @@ Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vi
 
 - **Web UI** — Ctrl+V image paste, drag-and-drop, text snippets, syntax highlighting, browse gallery
 - **REST API** — list, upload, download, delete, pin files and text snippets
-- **MCP Server** — 11 tool calls for AI agents (Hermes, Devin, Claude Code, etc.)
+- **MCP Server** — 12 tool calls for AI agents (Hermes, Devin, Claude Code, etc.)
 - **Vision Pre-processing** — automatically OCR/describe uploaded images using a local or remote vision LLM
 - **Configurable Prompts** — 5 built-in vision prompt templates (terminal, code, document, diagram, default) plus custom user-defined prompts via REST API
 - **Multi-Prompt Analysis** — analyze the same image with multiple prompts, all results stored side-by-side
+- **Preset Comparison** — run an image through all vision presets in parallel, rank results with pairwise LLM judging or heuristic scoring
+- **OpenAPI 3.0 Spec** — machine-readable API definition at `/api/openapi.json`
 - **No auth** — open access on all interfaces
 - **Auto-expire** — configurable TTL per item (1h, 1d, 7d, 30d, never)
 - **Persistent pinning** — mark items as persistent to exempt them from expiry
 - **Files on disk** — plain files, directly readable by agents with filesystem access
 - **Unique IDs** — short 6-character IDs for every item
 - **Single Go binary** — no runtime dependencies
-- **Tested** — 89 tests with 54.0% code coverage
+- **Tested** — 96 tests with 55.6% code coverage
 
 ## Quick Start
 
@@ -233,6 +235,17 @@ curl -X POST /api/vision/test
 # Test with a specific sample image type (uses matching prompt)
 curl -X POST -H 'Content-Type: application/json' -d '{"image_type":"code"}' /api/vision/test
 # Image types: terminal (default), code, document, diagram
+
+# Compare all presets: run image through every preset, rank by quality
+curl -X POST -H 'Content-Type: application/json' -d '{"image_type":"terminal"}' /api/vision/compare
+# → {"total_presets":3,"success_count":2,"judge_used":"llm-pairwise","winner":"lemonade","results":[...]}
+# Judge: llm-pairwise (sends image + all results to active model for ranking) or heuristic (text length, JSON validity)
+
+# Compare using an existing uploaded image
+curl -X POST -H 'Content-Type: application/json' -d '{"item_id":"abc123"}' /api/vision/compare
+
+# OpenAPI 3.0 spec (machine-readable API definition)
+curl /api/openapi.json
 ```
 
 ## MCP Tools
@@ -259,6 +272,7 @@ MCP endpoint: `https://paste.example.com/mcp`
 | `set_vision_preset` | Switch the active vision LLM preset |
 | `test_vision_preset` | Test connectivity to a preset (omit preset to test active) |
 | `test_vision` | Run the full vision pipeline on a built-in sample image (terminal, code, document, diagram) |
+| `compare_vision` | Run an image through ALL presets, compare & rank results (LLM judge or heuristic) |
 
 ### Vision MCP Tool Examples
 
@@ -301,6 +315,12 @@ MCP endpoint: `https://paste.example.com/mcp`
 
 // Test with a specific sample image type (uses matching prompt)
 {"name": "test_vision", "arguments": {"image_type": "code"}}
+
+// Compare all presets: run image through every preset, rank by quality
+{"name": "compare_vision", "arguments": {"image_type": "terminal"}}
+
+// Compare using an existing uploaded image
+{"name": "compare_vision", "arguments": {"item_id": "abc123"}}
 ```
 
 ## Direct Access

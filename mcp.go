@@ -341,6 +341,27 @@ var mcpTools = []MCPTool{
 			},
 		},
 	},
+	{
+		Name:        "compare_vision",
+		Description: "Run an image through ALL configured vision presets in parallel, compare results, and rank by quality. Uses pairwise LLM judging when possible (sends image + all results to the active preset's model for ranking), with heuristic fallback (text length, JSON validity, refusal markers). Returns ranked results with scores and rationale.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"image_type": map[string]any{
+					"type":        "string",
+					"description": "Sample image type: terminal (default), code, document, or diagram. Ignored if item_id is provided.",
+				},
+				"item_id": map[string]any{
+					"type":        "string",
+					"description": "Existing image item ID to compare. If omitted, uses a sample image.",
+				},
+				"prompt": map[string]any{
+					"type":        "string",
+					"description": "Prompt name to use for analysis (default: 'default')",
+				},
+			},
+		},
+	},
 }
 
 func mcpHandler(w http.ResponseWriter, r *http.Request) {
@@ -547,6 +568,12 @@ func handleMCPToolCall(name string, args map[string]any) (interface{}, *MCPError
 	case "test_vision":
 		imageType, _ := args["image_type"].(string)
 		return mcpVisionTest(imageType)
+
+	case "compare_vision":
+		imageType, _ := args["image_type"].(string)
+		itemID, _ := args["item_id"].(string)
+		promptName, _ := args["prompt"].(string)
+		return mcpCompareVision(imageType, itemID, promptName)
 
 	default:
 		return nil, &MCPError{Code: -32601, Message: "Unknown tool: " + name}

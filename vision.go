@@ -66,6 +66,10 @@ func analyzeImageAsyncWithPrompt(itemID, promptName string) {
 		return
 	}
 
+	preset := getActiveVisionPreset()
+	log.Printf("Vision analysis: starting for %s [%s] → preset=%q model=%q endpoint=%s",
+		itemID, promptName, preset.Name, preset.Model, preset.Endpoint)
+
 	// Mark as pending
 	updateItem(itemID, func(item *Item) bool {
 		if item.Analyses == nil {
@@ -81,7 +85,7 @@ func analyzeImageAsyncWithPrompt(itemID, promptName string) {
 
 	result, err := analyzeImage(itemID, prompt.Prompt)
 	if err != nil {
-		log.Printf("Vision analysis failed for %s [%s]: %v", itemID, promptName, err)
+		log.Printf("Vision analysis FAILED for %s [%s]: %v", itemID, promptName, err)
 		updateItem(itemID, func(item *Item) bool {
 			if item.Analyses == nil {
 				item.Analyses = make(map[string]*ItemAnalysis)
@@ -111,8 +115,8 @@ func analyzeImageAsyncWithPrompt(itemID, promptName string) {
 		}
 		return true
 	})
-	log.Printf("Vision analysis complete for %s [%s]: type=%s, %d chars extracted",
-		itemID, promptName, result.ImageType, len(result.Text))
+	log.Printf("Vision analysis complete for %s [%s]: type=%s, %d chars extracted, preset=%s",
+		itemID, promptName, result.ImageType, len(result.Text), preset.Name)
 }
 
 // analyzeImage reads the image file, sends it to the vision model with the given prompt, and parses the response.

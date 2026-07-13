@@ -1085,6 +1085,11 @@ body {
     <div class="mcp-info-banner">
       <h3>REST API</h3>
       <p>All endpoints are open — no auth required. Base URL: <code id="restBaseUrl"></code></p>
+      <p style="margin-top:8px;">
+        <a href="/api/openapi.json" target="_blank" style="color:var(--accent); text-decoration:none; font-size:13px;">
+          OpenAPI 3.0 Spec (JSON)
+        </a>
+      </p>
     </div>
 
     <div class="api-card">
@@ -1248,6 +1253,54 @@ body {
       <div class="api-card-body">
         <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
         <div class="api-example"><span class="curl">curl</span> <span class="flag">-X</span> POST <span class="url" id="restUrl11"></span>/api/analyze/<span class="json-key">{id}</span>?prompt=terminal</div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method GET">GET</span>
+        <span class="api-path">/api/config/vision</span>
+        <span class="api-desc">Get vision configuration (presets, active, enabled)</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="url" id="restUrlVisCfg"></span>/api/config/vision</div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method POST">POST</span>
+        <span class="api-path">/api/config/vision/test</span>
+        <span class="api-desc">Test connectivity to a vision preset (text-only, no image)</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="flag">-X</span> POST <span class="flag">-H</span> <span class="json-str">'Content-Type: application/json'</span> <span class="flag">-d</span> <span class="json-str">'{"preset":"lemonade"}'</span> <span class="url" id="restUrlVisTest"></span>/api/config/vision/test</div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method POST">POST</span>
+        <span class="api-path">/api/vision/test</span>
+        <span class="api-desc">Run full vision pipeline on a built-in sample image</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="flag">-X</span> POST <span class="flag">-H</span> <span class="json-str">'Content-Type: application/json'</span> <span class="flag">-d</span> <span class="json-str">'{"image_type":"terminal"}'</span> <span class="url" id="restUrlVisPipe"></span>/api/vision/test</div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method POST">POST</span>
+        <span class="api-path">/api/vision/compare</span>
+        <span class="api-desc">Run image through ALL presets, compare &amp; rank results</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="flag">-X</span> POST <span class="flag">-H</span> <span class="json-str">'Content-Type: application/json'</span> <span class="flag">-d</span> <span class="json-str">'{"image_type":"terminal"}'</span> <span class="url" id="restUrlVisCmp"></span>/api/vision/compare</div>
       </div>
     </div>
 
@@ -1482,6 +1535,12 @@ body {
       <div class="mcp-tool-desc">Run the full vision pipeline on a built-in sample image. Tests the entire flow: image → model analysis → text extraction.</div>
       <div class="mcp-tool-params">Parameters: <span class="param-name">image_type</span> (<span class="param-type">string</span>, optional) — terminal (default), code, document, or diagram. Uses the matching prompt template.</div>
     </div>
+
+    <div class="mcp-tool-card">
+      <div class="mcp-tool-name">compare_vision</div>
+      <div class="mcp-tool-desc">Run an image through ALL configured vision presets in parallel, compare results, and rank by quality. Uses pairwise LLM judging when possible, with heuristic fallback.</div>
+      <div class="mcp-tool-params">Parameters: <span class="param-name">image_type</span> (<span class="param-type">string</span>, optional), <span class="param-name">item_id</span> (<span class="param-type">string</span>, optional), <span class="param-name">prompt</span> (<span class="param-type">string</span>, optional)</div>
+    </div>
   </div>
 </div>
 
@@ -1505,15 +1564,17 @@ body {
       </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="testVisionBtn" onclick="testVisionPipeline()">Test Vision Pipeline</button>
+        <button class="btn btn-primary" style="font-size:13px;padding:6px 14px" id="compareVisionBtn" onclick="compareVisionPresets()">Compare All Presets</button>
         <select id="testVisionType" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:13px">
           <option value="terminal">Terminal</option>
           <option value="code">Code</option>
           <option value="document">Document</option>
           <option value="diagram">Diagram</option>
         </select>
-        <span style="color:var(--text-muted);font-size:12px">Runs a built-in sample image through the full analysis pipeline</span>
+        <span style="color:var(--text-muted);font-size:12px">Test uses one preset; Compare runs all presets and ranks results</span>
       </div>
       <div id="visionTestResult" style="display:none;margin-top:12px"></div>
+      <div id="visionCompareResult" style="display:none;margin-top:12px"></div>
     </div>
 
     <div class="settings-section">
@@ -2511,6 +2572,74 @@ async function testVisionPipeline() {
         (result.latency ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">Latency: ${result.latency}</div>` : '') +
         `</div>`;
     }
+    resultDiv.innerHTML = html;
+    resultDiv.style.display = 'block';
+  } catch (e) {
+    resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ Request failed</div>`;
+    resultDiv.style.display = 'block';
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function compareVisionPresets() {
+  const btn = document.getElementById('compareVisionBtn');
+  const resultDiv = document.getElementById('visionCompareResult');
+  const imageType = document.getElementById('testVisionType').value;
+  const originalText = btn.textContent;
+  btn.textContent = 'Comparing...';
+  btn.disabled = true;
+  resultDiv.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/vision/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_type: imageType })
+    });
+    const result = await resp.json();
+
+    let html = '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg-card)">';
+
+    if (result.image_b64) {
+      html += `<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px">` +
+        `<img src="data:image/png;base64,${result.image_b64}" style="width:120px;border-radius:4px;border:1px solid var(--border)" />` +
+        `<div style="flex:1">` +
+        `<div style="color:var(--accent);font-size:13px;margin-bottom:4px">Vision Comparison Results</div>` +
+        `<div style="font-size:12px;color:var(--text-muted)">${result.success_count}/${result.total_presets} presets succeeded</div>` +
+        `<div style="font-size:12px;color:var(--text-muted)">Judge: ${escapeHtml(result.judge_used)}${result.judge_model ? ' (' + escapeHtml(result.judge_model) + ')' : ''}</div>` +
+        (result.winner ? `<div style="font-size:13px;color:var(--accent);margin-top:4px">Winner: ${escapeHtml(result.winner)}</div>` : '') +
+        `</div></div>`;
+    }
+
+    if (result.results && result.results.length > 0) {
+      html += '<div style="display:flex;flex-direction:column;gap:8px">';
+      for (const r of result.results) {
+        const borderColor = r.rank === 1 ? 'var(--accent)' : 'var(--border)';
+        const bgColor = r.rank === 1 ? 'var(--bg)' : 'var(--bg)';
+        html += `<div style="border:1px solid ${borderColor};border-radius:6px;padding:10px;background:${bgColor}">`;
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">`;
+        html += `<div style="font-size:13px;font-weight:600">#${r.rank} ${escapeHtml(r.preset)} ${r.success ? '' : '<span style="color:#f87171">FAIL</span>'}</div>`;
+        html += `<div style="font-size:11px;color:var(--text-muted)">score: ${r.score.toFixed(1)} | ${escapeHtml(r.latency)}</div>`;
+        html += `</div>`;
+        html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${escapeHtml(r.model)}</div>`;
+        if (r.error) {
+          html += `<div style="font-size:12px;color:#f87171">Error: ${escapeHtml(r.error)}</div>`;
+        }
+        if (r.judge_rationale) {
+          html += `<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:4px">Judge: ${escapeHtml(r.judge_rationale)}</div>`;
+        }
+        if (r.success && r.text) {
+          const preview = r.text.length > 300 ? r.text.substring(0, 300) + '...' : r.text;
+          html += `<pre style="font-size:11px;background:var(--bg);padding:6px;border-radius:4px;overflow-x:auto;white-space:pre-wrap;margin:0;max-height:120px">${escapeHtml(preview)}</pre>`;
+        }
+        html += `</div>`;
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
     resultDiv.innerHTML = html;
     resultDiv.style.display = 'block';
   } catch (e) {

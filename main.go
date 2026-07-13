@@ -140,6 +140,7 @@ func main() {
 	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
 	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
 	mux.HandleFunc("/api/vision/test", apiVisionTestHandler)
+	mux.HandleFunc("/api/vision/compare", apiVisionCompareHandler)
 	mux.HandleFunc("/api/prompts", apiPromptsHandler)
 	mux.HandleFunc("/api/prompts/", apiPromptHandler)
 	mux.HandleFunc("/api/text", apiTextHandler)
@@ -151,6 +152,7 @@ func main() {
 	mux.HandleFunc("/api/upload/complete", apiUploadCompleteHandler)
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/version", versionHandler)
+	mux.HandleFunc("/api/openapi.json", openapiSpecHandler)
 
 	// MCP endpoint
 	mux.HandleFunc("/mcp", mcpHandler)
