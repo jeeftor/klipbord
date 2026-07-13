@@ -54,47 +54,147 @@ type visionAnalysisResult struct {
 	Description string `json:"description"`
 }
 
-// analyzeImageAsync runs vision analysis in a background goroutine using the default prompt.
-func analyzeImageAsync(itemID string) {
-	analyzeImageAsyncWithPrompt(itemID, "default")
-}
+// classifyPrompt is a minimal single-word classification prompt.
+const classifyPrompt = `What type is this image? Reply with exactly one word from this list:
+terminal, code, screenshot, document, diagram, photo, other
 
-// analyzeImageAsyncWithPrompt runs vision analysis with a specific prompt in the background.
-func analyzeImageAsyncWithPrompt(itemID, promptName string) {
-	prompt, ok := getPrompt(promptName)
-	if !ok {
-		log.Printf("Vision analysis: prompt %q not found for item %s", promptName, itemID)
-		return
+/no_think`
+
+// classifyImage sends a cheap one-word classification call to identify the image type.
+// Returns one of: terminal, code, screenshot, document, diagram, photo, other.
+func classifyImage(itemID string) (string, error) {
+	fpath := filepath.Join(dataDir, fileDir, itemID)
+	imgData, err := os.ReadFile(fpath)
+	if err != nil {
+		return "", fmt.Errorf("read image: %w", err)
 	}
 
-	preset := getActiveVisionPreset()
-	log.Printf("Vision analysis: starting for %s [%s] → preset=%q model=%q endpoint=%s",
-		itemID, promptName, preset.Name, preset.Model, preset.Endpoint)
+	b64 := base64.StdEncoding.EncodeToString(imgData)
+	mimeType := http.DetectContentType(imgData)
+	if !strings.HasPrefix(mimeType, "image/") {
+		mimeType = "image/png"
+	}
+	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, b64)
 
-	// Mark as pending
+	preset := getActiveVisionPreset()
+	reqBody := visionChatRequest{
+		Model: preset.Model,
+		Messages: []visionChatMessage{{
+			Role: "user",
+			Content: []visionContent{
+				{Type: "text", Text: classifyPrompt},
+				{Type: "image_url", ImageURL: &visionImageURL{URL: dataURL}},
+			},
+		}},
+		MaxTokens: 10,
+	}
+
+	bodyJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal: %w", err)
+	}
+	req, err := http.NewRequest("POST", preset.Endpoint, bytes.NewReader(bodyJSON))
+	if err != nil {
+		return "", fmt.Errorf("new request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if preset.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+preset.APIKey)
+	}
+
+	start := time.Now()
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("API %d: %s", resp.StatusCode, string(body))
+	}
+
+	var chatResp visionChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
+		return "", fmt.Errorf("decode: %w", err)
+	}
+	if len(chatResp.Choices) == 0 {
+		return "", fmt.Errorf("no choices")
+	}
+
+	raw := stripMarkdownCodeFence(chatResp.Choices[0].Message.Content)
+	// Extract the first word, lowercase, strip punctuation
+	fields := strings.Fields(raw)
+	if len(fields) == 0 {
+		return "other", nil
+	}
+	word := strings.ToLower(strings.Trim(fields[0], ".,!?:;\"'`"))
+
+	valid := map[string]bool{
+		"terminal": true, "code": true, "screenshot": true,
+		"document": true, "diagram": true, "photo": true, "other": true,
+	}
+	if !valid[word] {
+		log.Printf("Vision classify: unexpected %q for %s (raw=%q) in %s, using 'other'",
+			word, itemID, raw, time.Since(start).Round(time.Millisecond))
+		return "other", nil
+	}
+
+	log.Printf("Vision classify: %s → %q in %s", itemID, word, time.Since(start).Round(time.Millisecond))
+	return word, nil
+}
+
+// analyzeImageTwoPass is the default auto-analysis path for new uploads.
+// Pass 1: classify the image type with a cheap single-word call.
+// Pass 2: run the matching specialized prompt for best extraction quality.
+// Results are stored under the "default" key so existing UI/API behaviour is unchanged.
+func analyzeImageTwoPass(itemID string) {
+	preset := getActiveVisionPreset()
+	log.Printf("Vision two-pass: starting for %s → preset=%q model=%q endpoint=%s",
+		itemID, preset.Name, preset.Model, preset.Endpoint)
+
+	// Mark pending immediately so the UI shows "Analyzing..."
 	updateItem(itemID, func(item *Item) bool {
 		if item.Analyses == nil {
 			item.Analyses = make(map[string]*ItemAnalysis)
 		}
-		item.Analyses[promptName] = &ItemAnalysis{
+		item.Analyses["default"] = &ItemAnalysis{
 			Status:     "pending",
 			Backend:    visionModel,
-			PromptName: promptName,
+			PromptName: "default",
 		}
 		return true
 	})
 
+	// Pass 1: classify
+	imageType, err := classifyImage(itemID)
+	if err != nil {
+		log.Printf("Vision two-pass: classify failed for %s (%v), falling back to default prompt", itemID, err)
+		imageType = ""
+	}
+
+	// Pick the best matching prompt; fall back to "default" if no match
+	promptName := imageType
+	prompt, ok := getPrompt(promptName)
+	if !ok {
+		promptName = "default"
+		prompt, _ = getPrompt("default")
+	}
+
+	log.Printf("Vision two-pass: %s classified as %q, extracting with prompt %q", itemID, imageType, promptName)
+
+	// Pass 2: extract
 	start := time.Now()
 	result, err := analyzeImage(itemID, prompt.Prompt)
 	elapsed := time.Since(start).Round(time.Millisecond)
 
 	if err != nil {
-		log.Printf("Vision analysis FAILED for %s [%s] after %s: %v", itemID, promptName, elapsed, err)
+		log.Printf("Vision two-pass FAILED for %s after %s: %v", itemID, elapsed, err)
 		updateItem(itemID, func(item *Item) bool {
 			if item.Analyses == nil {
 				item.Analyses = make(map[string]*ItemAnalysis)
 			}
-			item.Analyses[promptName] = &ItemAnalysis{
+			item.Analyses["default"] = &ItemAnalysis{
 				Status:     "failed",
 				Backend:    visionModel,
 				PromptName: promptName,
@@ -105,11 +205,15 @@ func analyzeImageAsyncWithPrompt(itemID, promptName string) {
 		return
 	}
 
+	score := scoreVisionResult(result, imageType)
+	log.Printf("Vision two-pass complete for %s: classified=%q extracted=%s, %d chars, %s, score=%.0f/100, preset=%s",
+		itemID, imageType, result.ImageType, len(result.Text), elapsed, score, preset.Name)
+
 	updateItem(itemID, func(item *Item) bool {
 		if item.Analyses == nil {
 			item.Analyses = make(map[string]*ItemAnalysis)
 		}
-		item.Analyses[promptName] = &ItemAnalysis{
+		item.Analyses["default"] = &ItemAnalysis{
 			Status:      "complete",
 			Text:        result.Text,
 			Description: result.Description,
@@ -119,13 +223,13 @@ func analyzeImageAsyncWithPrompt(itemID, promptName string) {
 		}
 		return true
 	})
-
-	// Compute a simple quality score
-	score := scoreVisionResult(result, promptName)
-
-	log.Printf("Vision analysis complete for %s [%s]: type=%s, %d chars, %s, score=%.0f/100, preset=%s, model=%s",
-		itemID, promptName, result.ImageType, len(result.Text), elapsed, score, preset.Name, preset.Model)
 }
+
+// analyzeImageAsync runs vision analysis in a background goroutine using the default prompt.
+func analyzeImageAsync(itemID string) {
+	analyzeImageTwoPass(itemID)
+}
+
 
 // scoreVisionResult computes a simple 0-100 quality score for a vision analysis result
 func scoreVisionResult(result *visionAnalysisResult, expectedType string) float64 {
