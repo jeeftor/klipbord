@@ -1,0 +1,71 @@
+name: UI snapshots
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/capture-ui-snapshots.sh'
+      - '.github/playwright-cli.json'
+      - '.github/workflows/ui-snapshots.yml'
+      - '**.go'
+      - 'internal/webassets/static/**'
+      - 'internal/app/testdata/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture UI screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Chrome Headless Shell
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/klipbord-playwright-browsers
+        run: npx --yes --package=@playwright/cli@0.1.17 playwright-cli install-browser chromium --only-shell
+
+      - name: Build Klipbord
+        run: go build -o .tmp/klipbord .
+
+      - name: Start Klipbord
+        run: |
+          mkdir -p .tmp/data
+          DATA_DIR="$PWD/.tmp/data" BASE_URL=http://127.0.0.1:8080 PORT=8080 VISION_ENABLED=false \
+            .tmp/klipbord >.tmp/klipbord.log 2>&1 &
+          echo $! >.tmp/klipbord.pid
+
+      - name: Capture screenshots
+        env:
+          BASE_URL: http://127.0.0.1:8080
+          OUTPUT_DIR: artifacts/ui-snapshots
+          PLAYWRIGHT_CLI_VERSION: 0.1.17
+          PLAYWRIGHT_CLI_CONFIG: ${{ github.workspace }}/.github/playwright-cli.json
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/klipbord-playwright-browsers
+          PWTEST_DAEMON_SESSION_DIR: ${{ runner.temp }}/klipbord-playwright-daemon
+        run: .github/scripts/capture-ui-snapshots.sh
+
+      - name: Upload UI snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-snapshots
+          path: |
+            artifacts/ui-snapshots/
+            .tmp/klipbord.log
+          if-no-files-found: warn

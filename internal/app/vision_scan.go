@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"image/png"
 	_ "image/jpeg" // register JPEG decoder
+	"image/png"
 	"log"
 	"net/http"
 	"os"

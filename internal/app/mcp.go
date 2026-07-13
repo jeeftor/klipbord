@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"encoding/base64"
@@ -622,7 +622,7 @@ func formatItemList(items []Item) (interface{}, *MCPError) {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Found %d items:", len(items)))
 	for _, item := range items {
-		url := fmt.Sprintf("%s/%s/%s", baseURL, itemTypePath(item.Type), item.ID)
+		url := linkURL(item.ID)
 		expiry := "never"
 		if !item.Expires.IsZero() {
 			expiry = item.Expires.Format("2006-01-02 15:04:05")
@@ -662,8 +662,8 @@ func mcpGetFile(id string) (interface{}, *MCPError) {
 	return MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
-			Text: fmt.Sprintf("File: %s\nMIME: %s\nSize: %d bytes\nURL: %s/f/%s\nBase64 content:\n%s",
-				item.Name, item.MimeType, item.Size, baseURL, id, encoded),
+			Text: fmt.Sprintf("File: %s\nMIME: %s\nSize: %d bytes\nURL: %s\nBase64 content:\n%s",
+				item.Name, item.MimeType, item.Size, linkURL(id), encoded),
 		}},
 	}, nil
 }
@@ -673,7 +673,7 @@ func mcpGetFileURL(id string) (interface{}, *MCPError) {
 	if !ok {
 		return nil, &MCPError{Code: -32602, Message: "item not found"}
 	}
-	url := fmt.Sprintf("%s/%s/%s", baseURL, itemTypePath(item.Type), item.ID)
+	url := linkURL(item.ID)
 	return MCPToolResult{
 		Content: []MCPContent{{Type: "text", Text: url}},
 	}, nil
@@ -693,7 +693,10 @@ func mcpUploadFile(filename, content, mimeType, ttlStr string, persistent bool) 
 		ttl = defaultTTL
 	}
 
-	id := genID()
+	id, err := genID()
+	if err != nil {
+		return nil, &MCPError{Code: -32603, Message: "failed to generate item ID"}
+	}
 	fpath := filepath.Join(dataDir, fileDir, id)
 	if err := os.WriteFile(fpath, data, 0644); err != nil {
 		return nil, &MCPError{Code: -32603, Message: "failed to write file"}
@@ -724,7 +727,7 @@ func mcpUploadFile(filename, content, mimeType, ttlStr string, persistent bool) 
 	}
 	addItem(item)
 
-	url := fmt.Sprintf("%s/f/%s", baseURL, id)
+	url := linkURL(id)
 	return MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -739,7 +742,10 @@ func mcpCreateText(content, name, ttlStr string, persistent bool) (interface{}, 
 		ttl = defaultTTL
 	}
 
-	id := genID()
+	id, err := genID()
+	if err != nil {
+		return nil, &MCPError{Code: -32603, Message: "failed to generate item ID"}
+	}
 	if name == "" {
 		name = fmt.Sprintf("snippet_%s.txt", time.Now().Format("20060102_150405"))
 	}
@@ -768,7 +774,7 @@ func mcpCreateText(content, name, ttlStr string, persistent bool) (interface{}, 
 	}
 	addItem(item)
 
-	url := fmt.Sprintf("%s/t/%s", baseURL, id)
+	url := linkURL(id)
 	return MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
