@@ -100,12 +100,6 @@ func initVisionConfig() {
 			}
 			visionConfig.ActivePreset = "lemonade"
 		}
-		// Merge in any new default presets that don't exist yet
-		for k, v := range defaultVisionPresets {
-			if _, exists := visionConfig.Presets[k]; !exists {
-				visionConfig.Presets[k] = v
-			}
-		}
 	}
 
 	// Apply env var overrides (env vars always win)
@@ -308,6 +302,74 @@ const (
 )
 
 // --- REST API handlers ---
+
+// apiVisionModelsHandler proxies GET /v1/models from any endpoint so the UI can populate a model dropdown.
+// GET /api/config/vision/models?endpoint=<url>
+func apiVisionModelsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	endpoint := r.URL.Query().Get("endpoint")
+	if endpoint == "" {
+		p := getActiveVisionPreset()
+		endpoint = p.Endpoint
+	}
+
+	// Derive /v1/models URL from the chat completions endpoint
+	modelsURL := strings.Replace(endpoint, "/chat/completions", "/models", 1)
+	if modelsURL == endpoint {
+		modelsURL = strings.TrimRight(endpoint, "/") + "/models"
+	}
+
+	req, err := http.NewRequest("GET", modelsURL, nil)
+	if err != nil {
+		http.Error(w, `{"error":"invalid endpoint URL"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Pass API key if the endpoint matches a known preset
+	visionConfigMu.RLock()
+	for _, p := range visionConfig.Presets {
+		if p.Endpoint == endpoint && p.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+p.APIKey)
+			break
+		}
+	}
+	visionConfigMu.RUnlock()
+
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"could not reach endpoint: %s"}`, err.Error()), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		http.Error(w, fmt.Sprintf(`{"error":"models endpoint returned %d: %s"}`, resp.StatusCode, strings.TrimSpace(string(body))), http.StatusBadGateway)
+		return
+	}
+
+	var modelsResp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
+		http.Error(w, `{"error":"failed to parse models response"}`, http.StatusInternalServerError)
+		return
+	}
+
+	models := make([]string, 0, len(modelsResp.Data))
+	for _, m := range modelsResp.Data {
+		if m.ID != "" {
+			models = append(models, m.ID)
+		}
+	}
+	writeJSON(w, map[string]interface{}{"models": models, "endpoint": modelsURL})
+}
 
 // apiVisionConfigHandler handles GET /api/config/vision and POST/PUT/DELETE /api/config/vision/presets
 func apiVisionConfigHandler(w http.ResponseWriter, r *http.Request) {

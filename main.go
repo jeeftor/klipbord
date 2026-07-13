@@ -141,6 +141,7 @@ func main() {
 	mux.HandleFunc("/api/files/", apiFileHandler)
 	mux.HandleFunc("/api/analyze/", apiAnalyzeHandler)
 	mux.HandleFunc("/api/config/vision", apiVisionConfigHandler)
+	mux.HandleFunc("/api/config/vision/models", apiVisionModelsHandler)
 	mux.HandleFunc("/api/config/vision/", apiVisionConfigHandler)
 	mux.HandleFunc("/api/vision/test", apiVisionTestHandler)
 	mux.HandleFunc("/api/vision/compare", apiVisionCompareHandler)

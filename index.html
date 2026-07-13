@@ -1646,7 +1646,11 @@ body {
         </div>
         <div class="preset-form-row">
           <label>Model Name</label>
-          <input type="text" id="presetFormModel" placeholder="llama3.2-vision">
+          <div style="display:flex;gap:6px">
+            <input type="text" id="presetFormModel" list="presetModelList" placeholder="llama3.2-vision" style="flex:1">
+            <button type="button" class="btn btn-secondary" id="fetchModelsBtn" style="font-size:12px;padding:4px 10px;white-space:nowrap" onclick="fetchModelsForForm()">Fetch models</button>
+          </div>
+          <datalist id="presetModelList"></datalist>
         </div>
         <div class="preset-form-row">
           <label>API Key (optional)</label>
@@ -2543,6 +2547,37 @@ function duplicatePreset(p) {
 
 function hidePresetForm() {
   document.getElementById('presetForm').classList.remove('show');
+}
+
+async function fetchModelsForForm() {
+  const endpoint = document.getElementById('presetFormEndpoint').value.trim();
+  if (!endpoint) { showToast('Enter an endpoint URL first', true); return; }
+  const btn = document.getElementById('fetchModelsBtn');
+  const orig = btn.textContent;
+  btn.textContent = 'Fetching…';
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`/api/config/vision/models?endpoint=${encodeURIComponent(endpoint)}`);
+    const data = await resp.json();
+    if (!resp.ok) { showToast(data.error || 'Failed to fetch models', true); return; }
+    const dl = document.getElementById('presetModelList');
+    dl.innerHTML = '';
+    for (const m of (data.models || [])) {
+      const opt = document.createElement('option');
+      opt.value = m;
+      dl.appendChild(opt);
+    }
+    if ((data.models || []).length === 0) {
+      showToast('No models returned from endpoint', true);
+    } else {
+      showToast(`${data.models.length} model(s) available — click the field to pick`);
+    }
+  } catch (e) {
+    showToast('Could not reach endpoint', true);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
 }
 
 async function savePresetForm() {
