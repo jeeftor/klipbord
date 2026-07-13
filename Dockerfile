@@ -6,14 +6,14 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -o paste -ldflags="-s -w -X main.version=${VERSION}" .
+RUN CGO_ENABLED=0 go build -o klipbord -ldflags="-s -w -X main.version=${VERSION}" .
 
 # Final stage
 FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /build/paste /paste
+COPY --from=builder /build/klipbord /klipbord
 
 ENV PORT=8080
 ENV DATA_DIR=/data
@@ -24,4 +24,4 @@ RUN mkdir -p /data
 
 EXPOSE 8080
 
-CMD ["/paste"]
+CMD ["/klipbord"]

@@ -421,7 +421,7 @@ func mcpHandler(w http.ResponseWriter, r *http.Request) {
 				"tools": map[string]any{},
 			},
 			"serverInfo": map[string]any{
-				"name":    "paste",
+				"name":    "klipbord",
 				"version": "1.0.0",
 			},
 		})

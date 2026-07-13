@@ -198,6 +198,7 @@ func analyzeImageTwoPass(itemID string) {
 				Status:     "failed",
 				Backend:    visionModel,
 				PromptName: promptName,
+				DurationMs: elapsed.Milliseconds(),
 				Error:      err.Error(),
 			}
 			return true
@@ -220,6 +221,7 @@ func analyzeImageTwoPass(itemID string) {
 			Backend:     visionModel,
 			PromptName:  promptName,
 			ProcessedAt: time.Now(),
+			DurationMs:  elapsed.Milliseconds(),
 		}
 		return true
 	})
@@ -420,7 +422,9 @@ func apiAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run analysis synchronously for manual trigger
+	analyzeStart := time.Now()
 	result, err := analyzeImage(id, prompt.Prompt)
+	analyzeElapsed := time.Since(analyzeStart).Round(time.Millisecond)
 	if err != nil {
 		updateItem(id, func(it *Item) bool {
 			if it.Analyses == nil {
@@ -430,6 +434,7 @@ func apiAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 				Status:     "failed",
 				Backend:    visionModel,
 				PromptName: promptName,
+				DurationMs: analyzeElapsed.Milliseconds(),
 				Error:      err.Error(),
 			}
 			return true
@@ -449,6 +454,7 @@ func apiAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 			Backend:     visionModel,
 			PromptName:  promptName,
 			ProcessedAt: time.Now(),
+			DurationMs:  analyzeElapsed.Milliseconds(),
 		}
 		return true
 	})

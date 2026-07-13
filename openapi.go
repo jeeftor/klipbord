@@ -21,7 +21,7 @@ func buildOpenAPISpec() map[string]interface{} {
 	return map[string]interface{}{
 		"openapi": "3.0.3",
 		"info": map[string]interface{}{
-			"title":       "Paste API",
+			"title":       "Klipbord API",
 			"description": "File drop and paste service with vision LLM integration",
 			"version":     version,
 		},

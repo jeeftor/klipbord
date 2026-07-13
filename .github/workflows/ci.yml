@@ -8,7 +8,7 @@ on:
     types: [published]
 
 env:
-  IMAGE_NAME: ghcr.io/jeeftor/paste
+  IMAGE_NAME: ghcr.io/jeeftor/klipbord
 
 jobs:
   test:

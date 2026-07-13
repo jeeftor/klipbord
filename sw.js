@@ -1,4 +1,4 @@
-const CACHE = 'paste-v1';
+const CACHE = 'klipbord-v1';
 
 self.addEventListener('install', e => {
   self.skipWaiting();

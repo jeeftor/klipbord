@@ -9,7 +9,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
-<title>Paste</title>
+<title>Klipbord</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <style>
@@ -24,6 +24,7 @@
   --accent-hover: #79b8ff;
   --danger: #f85149;
   --success: #3fb950;
+  --brand2: #2f6fed;
   --radius: 8px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
@@ -60,14 +61,16 @@ body {
 .header h1 .logo {
   width: 28px;
   height: 28px;
-  background: var(--accent);
-  border-radius: 6px;
+  background: #ffffff;
+  border: 2px solid #111418;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: var(--bg);
-  font-weight: 700;
+  font-weight: 800;
+  color: var(--brand2, #2f6fed);
+  flex-shrink: 0;
 }
 .version-badge {
   font-size: 11px;
@@ -442,6 +445,36 @@ body {
   font-size: 13px;
   color: var(--text-muted);
 }
+.search-row {
+  position: relative;
+  margin-bottom: 16px;
+}
+.search-input {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px 8px 34px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: var(--font);
+}
+.search-input:focus { outline: none; border-color: var(--accent); }
+.search-row svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.search-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
 /* Vision analysis section on item cards */
 .item-analysis {
   padding: 8px 12px;
@@ -540,6 +573,7 @@ body {
   color: var(--text-muted);
   line-height: 1.4;
 }
+.item-thumb .code-preview .hljs { background: transparent; padding: 0; }
 .item-info {
   padding: 12px 16px;
 }
@@ -837,7 +871,8 @@ body {
   .items-grid { grid-template-columns: 1fr; }
   .header { padding: 12px 16px; }
   .main { padding: 16px; }
-  .tabs { padding: 0 16px; }
+  .tabs { padding: 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab { padding: 10px 12px; font-size: 13px; }
 }
 
 /* Tabs */
@@ -859,6 +894,7 @@ body {
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
   border-bottom: 2px solid transparent;
   transition: all 0.15s;
   font-family: var(--font);
@@ -902,6 +938,7 @@ body {
 }
 .api-method.GET { background: rgba(63, 185, 80, 0.2); color: var(--success); }
 .api-method.POST { background: rgba(88, 166, 255, 0.2); color: var(--accent); }
+.api-method.PUT { background: rgba(163, 113, 247, 0.2); color: #a371f7; }
 .api-method.PATCH { background: rgba(210, 153, 34, 0.2); color: #d29922; }
 .api-method.DELETE { background: rgba(248, 81, 73, 0.2); color: var(--danger); }
 .api-path {
@@ -924,9 +961,10 @@ body {
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text-muted);
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.6;
+  clear: both;
 }
 .api-example .curl { color: var(--accent); }
 .api-example .flag { color: var(--success); }
@@ -1009,7 +1047,7 @@ body {
 <body>
 
 <div class="header">
-  <h1><span class="logo">P</span> Paste <span class="version-badge" id="versionBadge">{{VERSION}}</span></h1>
+  <h1><span class="logo">K</span> Klipbord <span class="version-badge" id="versionBadge">{{VERSION}}</span></h1>
   <div class="header-actions">
     <select class="ttl-select" id="ttl">
       <option value="1h">Expires in 1 hour</option>
@@ -1071,10 +1109,18 @@ body {
       <h2>All Items</h2>
       <span class="items-count" id="itemsCount"></span>
     </div>
+    <div class="search-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" class="search-input" id="clipboardSearch" placeholder="Search filenames or recognized text (OCR/vision results)..." oninput="renderClipboardGrid()">
+    </div>
     <div id="itemsGrid" class="items-grid"></div>
     <div id="emptyState" class="empty" style="display:none">
       <div class="empty-icon">📭</div>
       <p>No items yet. Paste something above!</p>
+    </div>
+    <div id="clipboardNoResults" class="empty" style="display:none">
+      <div class="empty-icon">🔍</div>
+      <p>No items match your search.</p>
     </div>
   </div>
 </div>
@@ -1098,10 +1144,18 @@ body {
         <option value="type-asc">Type (A-Z)</option>
       </select>
     </div>
+    <div class="search-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" class="search-input" id="persistentSearch" placeholder="Search filenames or recognized text (OCR/vision results)..." oninput="renderPersistentGrid()">
+    </div>
     <div id="persistentGrid" class="items-grid"></div>
     <div id="persistentEmpty" class="empty" style="display:none">
       <div class="empty-icon">📌</div>
       <p>No persistent items yet. Pin items from the Clipboard tab to keep them forever.</p>
+    </div>
+    <div id="persistentNoResults" class="empty" style="display:none">
+      <div class="empty-icon">🔍</div>
+      <p>No items match your search.</p>
     </div>
   </div>
 </div>
@@ -1738,6 +1792,33 @@ const API = '/api';
 const BASE = window.location.origin;
 let currentModalId = null;
 
+// Client-side search state: last-loaded item arrays + a cache of full text-snippet
+// content (so search can match on paste content, not just the 200-char preview).
+let allClipboardItems = [];
+let allPersistentItems = [];
+const textContentCache = {};
+
+// Builds a lowercase blob of everything searchable for an item: filename, id,
+// vision analysis text/description (OCR + descriptions from every prompt run on
+// it), and cached full text-snippet content.
+function itemSearchBlob(item) {
+  const parts = [item.name || '', item.id || ''];
+  if (item.analyses) {
+    for (const pn in item.analyses) {
+      const a = item.analyses[pn];
+      if (a.text) parts.push(a.text);
+      if (a.description) parts.push(a.description);
+    }
+  }
+  if (textContentCache[item.id]) parts.push(textContentCache[item.id]);
+  return parts.join('\n').toLowerCase();
+}
+
+function itemMatchesSearch(item, query) {
+  if (!query) return true;
+  return itemSearchBlob(item).includes(query.toLowerCase());
+}
+
 // --- SVG icons (feather-style, 24x24 stroke) ---
 const ICONS = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
@@ -1787,14 +1868,14 @@ function switchTab(tab, ev) {
   const hermesCfg = document.getElementById('mcpHermesConfig');
   if (hermesCfg) hermesCfg.textContent =
     'mcp_servers:\n' +
-    '  paste:\n' +
+    '  kb:\n' +
     '    url: ' + BASE + '/mcp\n' +
     '    transport: http';
   const clientCfg = document.getElementById('mcpClientConfig');
   if (clientCfg) clientCfg.textContent =
     '{\n' +
     '  "mcpServers": {\n' +
-    '    "paste": {\n' +
+    '    "kb": {\n' +
     '      "url": "' + BASE + '/mcp"\n' +
     '    }\n' +
     '  }\n' +
@@ -2184,8 +2265,8 @@ function submitTextDirect(content) {
     .catch(err => showToast('Failed: ' + err, true));
 }
 
-function deleteItem(id, name) {
-  if (!confirm(`Delete "${name}"?`)) return;
+async function deleteItem(id, name) {
+  if (!await showConfirm(`Delete "${name}"? This cannot be undone.`, { title: 'Delete item' })) return;
   fetch(`${API}/files/${id}`, { method: 'DELETE' })
     .then(r => r.json())
     .then(() => {
@@ -2722,7 +2803,7 @@ async function savePresetForm() {
 }
 
 async function deletePreset(name) {
-  if (!confirm(`Delete preset "${name}"?`)) return;
+  if (!await showConfirm(`Delete preset "${name}"?`, { title: 'Delete preset' })) return;
   try {
     const resp = await fetch(`/api/config/vision/presets/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (resp.ok) {
@@ -2918,6 +2999,54 @@ function buildVisionTestCardHTML(type, result, score, status, scoreParts) {
   return html;
 }
 
+// Renders a CompareResult (from /api/vision/compare) as an HTML string —
+// a header (image + summary) plus a ranked list of per-backend results with
+// latency, score, and preview text. Shared by the Config-tab "Compare All
+// Presets" button and the per-item "Compare across backends" popup.
+function renderVisionCompareResultHTML(result) {
+  let html = '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg-card)">';
+
+  if (result.image_b64) {
+    html += `<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px">` +
+      `<img src="data:image/png;base64,${result.image_b64}" style="width:120px;border-radius:4px;border:1px solid var(--border)" />` +
+      `<div style="flex:1">` +
+      `<div style="color:var(--accent);font-size:13px;margin-bottom:4px">Vision Comparison Results</div>` +
+      `<div style="font-size:12px;color:var(--text-muted)">${result.success_count}/${result.total_presets} presets succeeded</div>` +
+      `<div style="font-size:12px;color:var(--text-muted)">Judge: ${escapeHtml(result.judge_used)}${result.judge_model ? ' (' + escapeHtml(result.judge_model) + ')' : ''}</div>` +
+      (result.winner ? `<div style="font-size:13px;color:var(--accent);margin-top:4px">Winner: ${escapeHtml(result.winner)}</div>` : '') +
+      `</div></div>`;
+  }
+
+  if (result.results && result.results.length > 0) {
+    html += '<div style="display:flex;flex-direction:column;gap:8px">';
+    for (const r of result.results) {
+      const borderColor = r.rank === 1 ? 'var(--accent)' : 'var(--border)';
+      const bgColor = r.rank === 1 ? 'var(--bg)' : 'var(--bg)';
+      html += `<div style="border:1px solid ${borderColor};border-radius:6px;padding:10px;background:${bgColor}">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">`;
+      html += `<div style="font-size:13px;font-weight:600">#${r.rank} ${escapeHtml(r.preset)} ${r.success ? '' : '<span style="color:#f87171">FAIL</span>'}</div>`;
+      html += `<div style="font-size:11px;color:var(--text-muted)">score: ${r.score.toFixed(1)} | ${escapeHtml(r.latency)}</div>`;
+      html += `</div>`;
+      html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${escapeHtml(r.model)}</div>`;
+      if (r.error) {
+        html += `<div style="font-size:12px;color:#f87171">Error: ${escapeHtml(r.error)}</div>`;
+      }
+      if (r.judge_rationale) {
+        html += `<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:4px">Judge: ${escapeHtml(r.judge_rationale)}</div>`;
+      }
+      if (r.success && r.text) {
+        const preview = r.text.length > 300 ? r.text.substring(0, 300) + '...' : r.text;
+        html += `<pre style="font-size:11px;background:var(--bg);padding:6px;border-radius:4px;overflow-x:auto;white-space:pre-wrap;margin:0;max-height:120px">${escapeHtml(preview)}</pre>`;
+      }
+      html += `</div>`;
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
 async function compareVisionPresets() {
   const btn = document.getElementById('compareVisionBtn');
   const resultDiv = document.getElementById('visionCompareResult');
@@ -2934,48 +3063,7 @@ async function compareVisionPresets() {
       body: JSON.stringify({ image_type: imageType })
     });
     const result = await resp.json();
-
-    let html = '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg-card)">';
-
-    if (result.image_b64) {
-      html += `<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px">` +
-        `<img src="data:image/png;base64,${result.image_b64}" style="width:120px;border-radius:4px;border:1px solid var(--border)" />` +
-        `<div style="flex:1">` +
-        `<div style="color:var(--accent);font-size:13px;margin-bottom:4px">Vision Comparison Results</div>` +
-        `<div style="font-size:12px;color:var(--text-muted)">${result.success_count}/${result.total_presets} presets succeeded</div>` +
-        `<div style="font-size:12px;color:var(--text-muted)">Judge: ${escapeHtml(result.judge_used)}${result.judge_model ? ' (' + escapeHtml(result.judge_model) + ')' : ''}</div>` +
-        (result.winner ? `<div style="font-size:13px;color:var(--accent);margin-top:4px">Winner: ${escapeHtml(result.winner)}</div>` : '') +
-        `</div></div>`;
-    }
-
-    if (result.results && result.results.length > 0) {
-      html += '<div style="display:flex;flex-direction:column;gap:8px">';
-      for (const r of result.results) {
-        const borderColor = r.rank === 1 ? 'var(--accent)' : 'var(--border)';
-        const bgColor = r.rank === 1 ? 'var(--bg)' : 'var(--bg)';
-        html += `<div style="border:1px solid ${borderColor};border-radius:6px;padding:10px;background:${bgColor}">`;
-        html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">`;
-        html += `<div style="font-size:13px;font-weight:600">#${r.rank} ${escapeHtml(r.preset)} ${r.success ? '' : '<span style="color:#f87171">FAIL</span>'}</div>`;
-        html += `<div style="font-size:11px;color:var(--text-muted)">score: ${r.score.toFixed(1)} | ${escapeHtml(r.latency)}</div>`;
-        html += `</div>`;
-        html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${escapeHtml(r.model)}</div>`;
-        if (r.error) {
-          html += `<div style="font-size:12px;color:#f87171">Error: ${escapeHtml(r.error)}</div>`;
-        }
-        if (r.judge_rationale) {
-          html += `<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-bottom:4px">Judge: ${escapeHtml(r.judge_rationale)}</div>`;
-        }
-        if (r.success && r.text) {
-          const preview = r.text.length > 300 ? r.text.substring(0, 300) + '...' : r.text;
-          html += `<pre style="font-size:11px;background:var(--bg);padding:6px;border-radius:4px;overflow-x:auto;white-space:pre-wrap;margin:0;max-height:120px">${escapeHtml(preview)}</pre>`;
-        }
-        html += `</div>`;
-      }
-      html += '</div>';
-    }
-
-    html += '</div>';
-    resultDiv.innerHTML = html;
+    resultDiv.innerHTML = renderVisionCompareResultHTML(result);
     resultDiv.style.display = 'block';
   } catch (e) {
     resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">✗ Request failed</div>`;
@@ -3173,7 +3261,7 @@ async function savePromptForm() {
 }
 
 async function deletePrompt(name) {
-  if (!confirm(`Delete prompt "${name}"?`)) return;
+  if (!await showConfirm(`Delete prompt "${name}"?`, { title: 'Delete prompt' })) return;
   try {
     const resp = await fetch(`/api/prompts/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (resp.ok) {
@@ -3202,6 +3290,42 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
+// Custom styled confirm dialog (replaces native window.confirm()).
+// Returns a Promise<boolean> — resolves true if the user confirms.
+function showConfirm(message, opts = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay show';
+    overlay.style.zIndex = '9999';
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.cssText = 'max-width:400px;max-height:none';
+    modal.innerHTML = `
+      <div class="modal-header"><h3>${escapeHtml(opts.title || 'Confirm')}</h3></div>
+      <div class="modal-body">
+        <p style="margin:0 0 16px;color:var(--text);font-size:14px">${escapeHtml(message)}</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-secondary" id="confirmCancelBtn">Cancel</button>
+          <button class="btn btn-danger" id="confirmOkBtn" style="padding:8px 16px;font-size:13px">${escapeHtml(opts.confirmLabel || 'Delete')}</button>
+        </div>
+      </div>`;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const cleanup = (result) => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') cleanup(false); };
+    document.addEventListener('keydown', onKey);
+    overlay.onclick = (e) => { if (e.target === overlay) cleanup(false); };
+    modal.querySelector('#confirmCancelBtn').onclick = () => cleanup(false);
+    modal.querySelector('#confirmOkBtn').onclick = () => cleanup(true);
+    modal.querySelector('#confirmOkBtn').focus();
+  });
+}
+
 function detectLang(filename) {
   const ext = filename.split('.').pop()?.toLowerCase();
   const map = {
@@ -3222,6 +3346,12 @@ function formatSize(bytes) {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
+function formatDuration(ms) {
+  if (!ms || ms <= 0) return '';
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 function formatExpiry(expires) {
   if (!expires || expires === '0001-01-01T00:00:00Z') return 'never';
   const d = new Date(expires);
@@ -3240,32 +3370,47 @@ function loadItems() {
   return fetch(`${API}/files?persistent=false`)
     .then(r => r.json())
     .then(data => {
-      const grid = document.getElementById('itemsGrid');
-      const empty = document.getElementById('emptyState');
-      const count = document.getElementById('itemsCount');
-      const items = data.items || [];
-
-      count.textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
-
-      if (items.length === 0) {
-        grid.innerHTML = '';
-        empty.style.display = 'block';
-        return;
-      }
-      empty.style.display = 'none';
-
-      grid.innerHTML = items.map(item => renderItemCard(item, false)).join('');
-      loadTextPreviews(items);
+      allClipboardItems = data.items || [];
+      loadTextPreviews(allClipboardItems);
+      renderClipboardGrid();
     });
+}
+
+function renderClipboardGrid() {
+  const grid = document.getElementById('itemsGrid');
+  const empty = document.getElementById('emptyState');
+  const noResults = document.getElementById('clipboardNoResults');
+  const count = document.getElementById('itemsCount');
+  const query = (document.getElementById('clipboardSearch')?.value || '').trim();
+  const items = allClipboardItems;
+
+  if (items.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    noResults.style.display = 'none';
+    count.textContent = '0 items';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const filtered = query ? items.filter(i => itemMatchesSearch(i, query)) : items;
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    noResults.style.display = 'block';
+  } else {
+    noResults.style.display = 'none';
+    grid.innerHTML = filtered.map(item => renderItemCard(item, false)).join('');
+  }
+
+  count.textContent = query
+    ? `${filtered.length} of ${items.length} item${items.length !== 1 ? 's' : ''}`
+    : `${items.length} item${items.length !== 1 ? 's' : ''}`;
 }
 
 function loadPersistentItems() {
   return fetch(`${API}/files?persistent=true`)
     .then(r => r.json())
     .then(data => {
-      const grid = document.getElementById('persistentGrid');
-      const empty = document.getElementById('persistentEmpty');
-      const count = document.getElementById('persistentCount');
       let items = data.items || [];
 
       // Sort
@@ -3283,18 +3428,41 @@ function loadPersistentItems() {
         }
       });
 
-      count.textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
-
-      if (items.length === 0) {
-        grid.innerHTML = '';
-        empty.style.display = 'block';
-        return;
-      }
-      empty.style.display = 'none';
-
-      grid.innerHTML = items.map(item => renderItemCard(item, true)).join('');
-      loadTextPreviews(items);
+      allPersistentItems = items;
+      loadTextPreviews(allPersistentItems);
+      renderPersistentGrid();
     });
+}
+
+function renderPersistentGrid() {
+  const grid = document.getElementById('persistentGrid');
+  const empty = document.getElementById('persistentEmpty');
+  const noResults = document.getElementById('persistentNoResults');
+  const count = document.getElementById('persistentCount');
+  const query = (document.getElementById('persistentSearch')?.value || '').trim();
+  const items = allPersistentItems;
+
+  if (items.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    noResults.style.display = 'none';
+    count.textContent = '0 items';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const filtered = query ? items.filter(i => itemMatchesSearch(i, query)) : items;
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    noResults.style.display = 'block';
+  } else {
+    noResults.style.display = 'none';
+    grid.innerHTML = filtered.map(item => renderItemCard(item, true)).join('');
+  }
+
+  count.textContent = query
+    ? `${filtered.length} of ${items.length} item${items.length !== 1 ? 's' : ''}`
+    : `${items.length} item${items.length !== 1 ? 's' : ''}`;
 }
 
 function renderItemCard(item, isPersistent) {
@@ -3356,14 +3524,15 @@ function renderItemCard(item, isPersistent) {
       analysisHTML = `<div class="item-analysis">`;
       for (const pn of promptNames.sort()) {
         const a = analyses[pn];
+        const durBadge = a.duration_ms ? `<span class="badge" title="Time to analyze">${formatDuration(a.duration_ms)}</span>` : '';
         if (a.status === 'pending') {
           analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] Analyzing...</div><div class="item-analysis-pending">Vision model processing image...</div>`;
         } else if (a.status === 'complete') {
-          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] <span class="badge">${a.backend || ''}</span></div>`;
+          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] <span class="badge">${a.backend || ''}</span>${durBadge}</div>`;
           if (a.description) analysisHTML += `<div class="item-analysis-desc">${escapeHtml(a.description)}</div>`;
           if (a.text) analysisHTML += `<div class="item-analysis-text">${escapeHtml(a.text)}</div>`;
         } else if (a.status === 'failed') {
-          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] Failed</div><div class="item-analysis-error">${escapeHtml(a.error || 'Unknown error')}</div>`;
+          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] Failed${durBadge}</div><div class="item-analysis-error">${escapeHtml(a.error || 'Unknown error')}</div>`;
         }
       }
       analysisHTML += `</div>`;
@@ -3394,15 +3563,31 @@ function loadTextPreviews(items) {
       .then(r => r.json())
       .then(data => {
         const el = document.getElementById(`preview-${item.id}`);
+        if (data.error) {
+          if (el) { el.textContent = '(file missing)'; el.style.opacity = '0.4'; }
+          return;
+        }
+        // Cache the full content so search can match on paste content, not
+        // just the truncated preview.
+        textContentCache[item.id] = data.content || '';
         if (el) {
-          if (data.error) {
-            el.textContent = '(file missing)';
-            el.style.opacity = '0.4';
+          const preview = data.content.substring(0, 200);
+          const lang = detectLang(item.name);
+          if (window.hljs) {
+            const code = document.createElement('code');
+            if (lang) code.className = `language-${lang}`;
+            code.textContent = preview;
+            el.innerHTML = '';
+            el.appendChild(code);
+            hljs.highlightElement(code);
           } else {
-            const preview = data.content.substring(0, 200);
             el.textContent = preview;
           }
         }
+        // If the user is actively searching, re-filter now that this item's
+        // content is indexed (it may newly match or unmatch the query).
+        if (document.getElementById('clipboardSearch')?.value) renderClipboardGrid();
+        if (document.getElementById('persistentSearch')?.value) renderPersistentGrid();
       })
       .catch(() => {
         const el = document.getElementById(`preview-${item.id}`);
@@ -3447,39 +3632,78 @@ function reanalyzeImage(id) {
     .then(r => r.json())
     .then(data => {
       const prompts = data.prompts || [];
-      const select = document.createElement('select');
-      select.style.cssText = 'display:block;margin:8px 0;padding:4px;font-size:14px;width:100%';
-      prompts.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.name;
-        opt.textContent = `${p.name}${p.built_in ? ' (built-in)' : ''} — ${p.description}`;
-        select.appendChild(opt);
-      });
 
-      const btn = document.createElement('button');
-      btn.textContent = 'Analyze';
-      btn.className = 'btn btn-primary';
-      btn.style.cssText = 'margin-top:8px;width:100%';
-
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay show';
+      overlay.style.zIndex = '9999';
       const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center';
-      const box = document.createElement('div');
-      box.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:400px;width:90%';
-      const title = document.createElement('h3');
-      title.textContent = 'Select Vision Prompt';
-      title.style.cssText = 'margin:0 0 12px 0;font-size:16px';
-      box.appendChild(title);
-      box.appendChild(select);
-      box.appendChild(btn);
-      modal.appendChild(box);
-      document.body.appendChild(modal);
+      modal.className = 'modal';
+      modal.style.maxWidth = '480px';
 
-      const close = () => modal.remove();
-      modal.onclick = (e) => { if (e.target === modal) close(); };
-      btn.onclick = () => {
-        const promptName = select.value;
+      const optionsHTML = prompts.map(p =>
+        `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}${p.built_in ? ' (built-in)' : ''} — ${escapeHtml(p.description)}</option>`
+      ).join('');
+
+      modal.innerHTML = `
+        <div class="modal-header">
+          <h3>Vision Analysis</h3>
+          <button class="icon-btn" data-tooltip="Close" id="analyzeModalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+        </div>
+        <div class="modal-body">
+          <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px">Prompt</label>
+          <select id="analyzePromptSelect" class="ttl-select" style="display:block;margin:0 0 12px;padding:6px;font-size:14px;width:100%">${optionsHTML}</select>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" id="analyzeSingleBtn" style="flex:1">Analyze</button>
+            <button class="btn btn-secondary" id="analyzeCompareBtn" style="flex:1">Compare All Backends</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px">"Compare All Backends" runs this image through every configured LLM preset and ranks the results — useful for benchmarking.</div>
+          <div id="analyzeCompareResult" style="display:none;margin-top:14px"></div>
+        </div>`;
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+      const onKey = (e) => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+      overlay.onclick = (e) => { if (e.target === overlay) close(); };
+      modal.querySelector('#analyzeModalClose').onclick = close;
+
+      modal.querySelector('#analyzeSingleBtn').onclick = () => {
+        const promptName = modal.querySelector('#analyzePromptSelect').value;
         close();
         doAnalyze(id, promptName);
+      };
+
+      modal.querySelector('#analyzeCompareBtn').onclick = async () => {
+        const promptName = modal.querySelector('#analyzePromptSelect').value;
+        const btn = modal.querySelector('#analyzeCompareBtn');
+        const resultDiv = modal.querySelector('#analyzeCompareResult');
+        const originalText = btn.textContent;
+        btn.textContent = 'Comparing...';
+        btn.disabled = true;
+        modal.querySelector('#analyzeSingleBtn').disabled = true;
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `<div style="font-size:12px;color:var(--text-muted)">Running this image through all configured backends — this can take a while...</div>`;
+
+        try {
+          const resp = await fetch('/api/vision/compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item_id: id, prompt: promptName })
+          });
+          const result = await resp.json();
+          if (result.error || result.success === false) {
+            resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">${escapeHtml(result.error || result.message || 'Comparison failed')}</div>`;
+          } else {
+            resultDiv.innerHTML = renderVisionCompareResultHTML(result);
+          }
+        } catch (e) {
+          resultDiv.innerHTML = `<div style="color:#f87171;font-size:13px">Request failed</div>`;
+        } finally {
+          btn.textContent = originalText;
+          btn.disabled = false;
+          modal.querySelector('#analyzeSingleBtn').disabled = false;
+        }
       };
     })
     .catch(err => showToast('Failed to load prompts: ' + err, true));

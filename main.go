@@ -73,6 +73,7 @@ type ItemAnalysis struct {
 	Backend     string    `json:"backend,omitempty"`
 	PromptName  string    `json:"prompt_name,omitempty"`
 	ProcessedAt time.Time `json:"processed_at,omitempty"`
+	DurationMs  int64     `json:"duration_ms,omitempty"` // time taken to run the vision analysis
 	Error       string    `json:"error,omitempty"`
 }
 
@@ -171,7 +172,7 @@ func main() {
 	mux.HandleFunc("/f/", directFileHandler)
 	mux.HandleFunc("/t/", directTextHandler)
 
-	log.Printf("paste server starting on :%s (data: %s, base: %s, max upload: %dMB)", port, dataDir, baseURL, maxUploadMB)
+	log.Printf("klipbord server starting on :%s (data: %s, base: %s, max upload: %dMB)", port, dataDir, baseURL, maxUploadMB)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

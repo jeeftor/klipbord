@@ -1,4 +1,4 @@
-# paste
+# Klipbord
 
 Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vision pre-processing.
 
@@ -26,8 +26,8 @@ Self-hosted paste/file-drop service with web UI, REST API, MCP server, and AI vi
 docker run -d \
   -p 8080:8080 \
   -v ./data:/data \
-  -e BASE_URL=https://paste.example.com \
-  ghcr.io/jeeftor/paste:latest
+  -e BASE_URL=https://klipbord.example.com \
+  ghcr.io/jeeftor/klipbord:latest
 ```
 
 ## Configuration
@@ -71,7 +71,7 @@ To disable vision entirely, set `VISION_ENABLED=false` or toggle it off in the U
 
 ## Vision Pre-Processing
 
-When an image is uploaded, paste automatically sends it to the configured vision LLM for analysis. The analysis result (extracted text + description) is stored alongside the image and made available to AI agents via MCP tools and the REST API.
+When an image is uploaded, Klipbord automatically sends it to the configured vision LLM for analysis. The analysis result (extracted text + description) is stored alongside the image and made available to AI agents via MCP tools and the REST API.
 
 ### Built-In Prompts
 
@@ -255,7 +255,9 @@ curl /api/openapi.json
 
 ## MCP Tools
 
-MCP endpoint: `https://paste.example.com/mcp`
+MCP endpoint: `https://klipbord.example.com/mcp`
+
+When registering the server with an MCP client, `kb` is a handy short key (e.g. `"mcpServers": {"kb": {"url": "https://klipbord.example.com/mcp"}}}`).
 
 | Tool | Description |
 |------|-------------|
@@ -334,8 +336,8 @@ MCP endpoint: `https://paste.example.com/mcp`
 
 ## Direct Access
 
-- Files: `https://paste.example.com/f/{id}`
-- Text: `https://paste.example.com/t/{id}`
+- Files: `https://klipbord.example.com/f/{id}`
+- Text: `https://klipbord.example.com/t/{id}`
 
 ## Storage
 
@@ -353,8 +355,8 @@ MCP endpoint: `https://paste.example.com/mcp`
 ### Building
 
 ```bash
-go build -o paste .
-./paste
+go build -o klipbord .
+./klipbord
 ```
 
 ### Testing

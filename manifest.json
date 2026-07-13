@@ -1,6 +1,6 @@
 {
-  "name": "Paste",
-  "short_name": "Paste",
+  "name": "Klipbord",
+  "short_name": "Klipbord",
   "description": "Quick clipboard paste service for files, images, and text",
   "start_url": "/",
   "scope": "/",
