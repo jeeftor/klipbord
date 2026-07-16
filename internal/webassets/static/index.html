@@ -610,7 +610,7 @@ body {
   padding: 12px 20px;
   border-radius: var(--radius);
   font-size: 13px;
-  z-index: 200;
+  z-index: 260;
   animation: slideIn 0.3s ease;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
@@ -866,6 +866,11 @@ body {
   .main { padding: 16px; }
   .tabs { padding: 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tab { padding: 10px 12px; font-size: 13px; }
+  .log-drawer { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; transform: translateY(calc(100% - 68px)); }
+  .log-drawer.open { height: min(62dvh, 560px) !important; }
+  .log-drawer-resize { height: 20px; }
+  .log-drawer-header { min-height: 48px; padding: 0 12px; }
+  .log-drawer-copy { padding: 5px 8px; }
 }
 
 /* Tabs */
@@ -909,29 +914,91 @@ body {
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* Logs */
-.logs-toolbar {
+/* Live log drawer */
+.log-drawer {
+  --log-drawer-height: 320px;
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 16px;
+  height: var(--log-drawer-height);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  transform: translateY(calc(100% - 52px));
+  transition: transform 0.2s ease, height 0.1s ease;
+  z-index: 250;
+}
+.log-drawer.open { transform: translateY(0); }
+.log-drawer-resize {
+  height: 12px;
+  flex-shrink: 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.log-drawer-resize::after {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 3px;
+  margin: 5px auto 0;
+  border-radius: 2px;
+  background: var(--border);
+}
+.log-drawer-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-height: 32px;
   gap: 12px;
-  margin: 16px 0 8px;
+  padding: 0 14px 8px;
 }
-.logs-count { color: var(--text-muted); font-size: 12px; }
-.logs-output {
-  min-height: 420px;
-  max-height: 65vh;
-  overflow: auto;
-  margin: 0;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
+.log-drawer-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.log-drawer-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.log-drawer-count { color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.log-drawer-actions { display: flex; align-items: center; gap: 6px; }
+.log-drawer-copy {
+  padding: 4px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.log-drawer-copy[hidden] { display: none; }
+.log-drawer-toggle { color: var(--text-muted); font-size: 16px; line-height: 1; }
+.log-drawer.open .log-drawer-toggle { transform: rotate(180deg); }
+.log-drawer-output {
+  flex: 1;
+  overflow: auto;
+  margin: 0 10px 10px;
+  padding: 10px 12px;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  background: var(--bg);
   font: 12px/1.5 var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
 }
+.log-line { display: block; color: var(--text-muted); }
+.log-line.error { color: var(--danger); }
+.log-line.warn { color: #d29922; }
+.log-line.success { color: var(--success); }
+.log-line.info { color: var(--accent); }
 
 /* API docs */
 .api-section {
@@ -1092,7 +1159,6 @@ body {
   <a class="tab" data-tab="rest" href="/rest-web" onclick="switchTab('rest', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="19" cy="19" r="2"></circle><path d="m7 11 10-5M7 13l10 5"></path></svg>REST API</a>
   <a class="tab" data-tab="mcp" href="/mcp-web" onclick="switchTab('mcp', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M12 2v4M8 13h.01M16 13h.01M8 17h8"></path></svg>MCP</a>
   <a class="tab" data-tab="config" href="/config" onclick="switchTab('config', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20.3h-3v-.08A1.7 1.7 0 0 0 10.68 18.66a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.02 15a1.7 1.7 0 0 0-1.56-1.03H5.4v-3h.06A1.7 1.7 0 0 0 7.02 9.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.12-2.12.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V4.7h3v.02a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 8l-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.04v3h-.04A1.7 1.7 0 0 0 19.4 15z"></path></svg>Config</a>
-  <a class="tab" data-tab="logs" href="/logs" onclick="switchTab('logs', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>Logs</a>
 </div>
 
 <!-- Tab: Clipboard -->
@@ -1674,24 +1740,6 @@ body {
   </div>
 </div>
 
-<!-- Tab: Logs -->
-<div class="tab-content" id="tab-logs">
-  <div class="main">
-    <div class="mcp-info-banner">
-      <h3>Server Logs</h3>
-      <p>The latest 500 in-memory server log lines. Sensitive values are redacted and logs are cleared when Klipbord restarts.</p>
-    </div>
-    <div class="logs-toolbar">
-      <span class="logs-count" id="logsCount">Loading logs…</span>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" style="font-size:13px;padding:6px 12px" onclick="loadLogs()">Refresh</button>
-        <button class="btn btn-secondary" style="font-size:13px;padding:6px 12px" onclick="copyLogs()">Copy</button>
-      </div>
-    </div>
-    <pre class="logs-output" id="logsOutput">Loading logs…</pre>
-  </div>
-</div>
-
 <!-- Tab: Config -->
 <div class="tab-content" id="tab-config">
   <div class="main">
@@ -1824,6 +1872,25 @@ body {
   </div>
 </div>
 
+<!-- Live log drawer -->
+<aside class="log-drawer" id="logDrawer" aria-label="Server logs">
+  <div class="log-drawer-resize" id="logDrawerResize" aria-hidden="true"></div>
+  <div class="log-drawer-header">
+    <button class="log-drawer-open" id="logDrawerToggle" type="button" onclick="toggleLogDrawer()" aria-expanded="false">
+      <span class="log-drawer-title">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+        <span>Logs</span>
+        <span class="log-drawer-count" id="logDrawerCount">Open to view</span>
+      </span>
+      <span class="log-drawer-toggle" aria-hidden="true">⌃</span>
+    </button>
+    <div class="log-drawer-actions">
+      <button class="btn btn-secondary log-drawer-copy" id="logDrawerCopy" type="button" onclick="copyLogs(event)" hidden>Copy</button>
+    </div>
+  </div>
+  <pre class="log-drawer-output" id="logDrawerOutput">Open Logs to load the latest server events.</pre>
+</aside>
+
 <!-- Image lightbox -->
 <div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()">
   <img id="imgLightboxImg" src="" alt="" onclick="event.stopPropagation()">
@@ -1896,7 +1963,6 @@ const tabRoutes = {
   rest: '/rest-web',
   mcp: '/mcp-web',
   config: '/config',
-  logs: '/logs',
 };
 
 function tabFromLocation() {
@@ -1910,7 +1976,6 @@ function activateTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'persistent') loadPersistentItems();
   if (tab === 'config') { loadVisionConfig(); loadVisionPrompts(); resumeMatrixIfRunning(); }
-  if (tab === 'logs') loadLogs();
 }
 
 function switchTab(tab, event) {
@@ -1923,31 +1988,101 @@ function switchTab(tab, event) {
 
 window.addEventListener('popstate', () => activateTab(tabFromLocation()));
 
+let logLoadInFlight = false;
+
+function logLineClass(line) {
+  if (/\b(error|failed|fatal|panic)\b/i.test(line)) return 'error';
+  if (/\b(warn|warning)\b/i.test(line)) return 'warn';
+  if (/\b(complete|success|ready|listening)\b/i.test(line)) return 'success';
+  if (/\b(info|starting|started|loading)\b/i.test(line)) return 'info';
+  return '';
+}
+
+function renderLogs(lines) {
+  const output = document.getElementById('logDrawerOutput');
+  output.replaceChildren();
+  if (lines.length === 0) {
+    output.textContent = 'No server log lines yet.';
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  lines.forEach(line => {
+    const entry = document.createElement('span');
+    entry.className = `log-line ${logLineClass(line)}`;
+    entry.textContent = line;
+    fragment.appendChild(entry);
+  });
+  output.appendChild(fragment);
+}
+
 function loadLogs() {
-  const output = document.getElementById('logsOutput');
-  const count = document.getElementById('logsCount');
+  if (logLoadInFlight) return;
+  const output = document.getElementById('logDrawerOutput');
+  const count = document.getElementById('logDrawerCount');
   if (!output || !count) return;
+  logLoadInFlight = true;
   const isAtBottom = output.scrollTop + output.clientHeight >= output.scrollHeight - 8;
   fetch(`${API}/logs`)
     .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
     .then(data => {
       const lines = data.lines || [];
-      output.textContent = lines.length ? lines.join('\n') : 'No server log lines yet.';
-      count.textContent = `${lines.length} of 500 recent lines`;
+      renderLogs(lines);
+      count.textContent = `${lines.length} / 500 lines`;
       if (isAtBottom) output.scrollTop = output.scrollHeight;
     })
     .catch(err => {
       output.textContent = `Failed to load logs: ${err.message}`;
       count.textContent = 'Logs unavailable';
-    });
+    })
+    .finally(() => { logLoadInFlight = false; });
 }
 
-function copyLogs() {
-  const output = document.getElementById('logsOutput');
+function copyLogs(event) {
+  event?.stopPropagation();
+  const output = document.getElementById('logDrawerOutput');
   navigator.clipboard.writeText(output.textContent)
     .then(() => showToast('Logs copied'))
     .catch(() => showToast('Could not copy logs', true));
 }
+
+function setLogDrawerOpen(open) {
+  const drawer = document.getElementById('logDrawer');
+  const toggle = document.getElementById('logDrawerToggle');
+  const copy = document.getElementById('logDrawerCopy');
+  drawer.classList.toggle('open', open);
+  toggle.setAttribute('aria-expanded', String(open));
+  copy.hidden = !open;
+  if (open) loadLogs();
+}
+
+function toggleLogDrawer() {
+  const drawer = document.getElementById('logDrawer');
+  setLogDrawerOpen(!drawer.classList.contains('open'));
+}
+
+(() => {
+  const drawer = document.getElementById('logDrawer');
+  const resize = document.getElementById('logDrawerResize');
+  let startY = 0;
+  let startHeight = 0;
+  resize.addEventListener('pointerdown', event => {
+    if (!drawer.classList.contains('open') || window.matchMedia('(max-width: 600px)').matches) return;
+    startY = event.clientY;
+    startHeight = drawer.getBoundingClientRect().height;
+    resize.setPointerCapture(event.pointerId);
+    drawer.style.transition = 'none';
+  });
+  resize.addEventListener('pointermove', event => {
+    if (!resize.hasPointerCapture(event.pointerId)) return;
+    const height = Math.max(180, Math.min(window.innerHeight * 0.82, startHeight + startY - event.clientY));
+    drawer.style.setProperty('--log-drawer-height', `${height}px`);
+  });
+  resize.addEventListener('pointerup', event => {
+    if (!resize.hasPointerCapture(event.pointerId)) return;
+    resize.releasePointerCapture(event.pointerId);
+    drawer.style.removeProperty('transition');
+  });
+})();
 
 // --- Populate API/MCP URLs on load ---
 (function populateUrls() {
@@ -4262,7 +4397,7 @@ setInterval(() => {
 }, 5000);
 
 setInterval(() => {
-  if (document.getElementById('tab-logs').classList.contains('active')) loadLogs();
+  if (document.getElementById('logDrawer').classList.contains('open')) loadLogs();
 }, 2000);
 
 // Initial load is selected from the URL so a refresh keeps the current section.
