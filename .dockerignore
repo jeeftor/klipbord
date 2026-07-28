@@ -1,0 +1,7 @@
+.git
+.gocache
+.playwright-cli
+output
+.github
+*.md
+.DS_Store
