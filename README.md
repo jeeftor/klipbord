@@ -320,6 +320,12 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 
 ## Changelog
 
+### v2.9.0
+
+- **Media metadata via ffprobe**: Audio and video uploads are probed with `ffprobe` (included in Docker image) to extract codec, duration, bitrate, sample rate, channels, and resolution. Metadata is stored in the item record and displayed immediately on page load — no need to play the file first.
+- **Waveform fix**: Audio waveforms now render on page load using `OfflineAudioContext` (no user gesture required). Previously the waveform only appeared after clicking play due to browser autoplay policy suspending regular `AudioContext`.
+- **Video info overlay**: Video cards show resolution, duration, codec, and bitrate as an overlay on the video player.
+
 ### v2.8.0
 
 - **Telegram notifications**: CI sends release announcements and CI failure alerts to a Telegram channel via bot. Requires `TELEGRAM_TOKEN` and `TELEGRAM_TO` repo secrets.

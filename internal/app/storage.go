@@ -58,6 +58,17 @@ type UIElement struct {
 	Location string   `json:"location,omitempty"`
 }
 
+// MediaInfo holds ffprobe-extracted metadata for audio/video files.
+type MediaInfo struct {
+	Duration   float64 `json:"duration,omitempty"`    // seconds
+	Codec      string  `json:"codec,omitempty"`       // e.g. "h264", "aac"
+	Width      int     `json:"width,omitempty"`       // video only
+	Height     int     `json:"height,omitempty"`      // video only
+	SampleRate int     `json:"sample_rate,omitempty"` // audio only
+	Channels   int     `json:"channels,omitempty"`    // audio only
+	BitRate    int     `json:"bit_rate,omitempty"`    // bits per second
+}
+
 // Item describes a text snippet or uploaded file.
 type Item struct {
 	ID         string                   `json:"id"`
@@ -70,6 +81,7 @@ type Item struct {
 	TTL        string                   `json:"ttl"`
 	Persistent bool                     `json:"persistent"`
 	Analyses   map[string]*ItemAnalysis `json:"analyses,omitempty"`
+	MediaInfo  *MediaInfo               `json:"media_info,omitempty"`
 	Content    string                   `json:"content,omitempty"`
 }
 

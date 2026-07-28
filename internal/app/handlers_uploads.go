@@ -102,6 +102,8 @@ func addUploadedFile(id, name, mimeType string, size int64, ttl time.Duration) {
 	if visionEnabled && strings.HasPrefix(mimeType, "image/") {
 		go analyzeImageAsync(id)
 	}
+	// Extract media metadata for audio/video files via ffprobe
+	probeMediaForItem(id, mimeType)
 }
 
 type chunkUploadMeta struct {

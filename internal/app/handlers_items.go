@@ -45,6 +45,9 @@ func apiFilesHandler(w http.ResponseWriter, r *http.Request) {
 			"persistent": item.Persistent,
 			"url":        linkURL(item.ID, item.Name),
 		}
+		if item.MediaInfo != nil {
+			entry["media_info"] = item.MediaInfo
+		}
 		if len(item.Analyses) > 0 {
 			if includeAnalysisContent {
 				entry["analyses"] = item.Analyses
