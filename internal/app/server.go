@@ -70,6 +70,7 @@ func Run(appVersion string, staticAssets Assets) {
 	loadMetadata()
 	initPrompts()
 	cleanupOrphanedMetadata()
+	go probeExistingMedia()
 	go sweeper()
 	go chunkSweeper()
 
