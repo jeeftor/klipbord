@@ -182,3 +182,26 @@ func TestDetectMimeTypeSniffingReturnsGeneric(t *testing.T) {
 		t.Errorf("detectMimeType generic sniff = %q, expected application/x-custom", got)
 	}
 }
+
+func TestDetectMimeTypeAudioExtensions(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		ext, want string
+	}{
+		{".mp3", "audio/mpeg"},
+		{".wav", "audio/x-wav"},
+		{".ogg", "audio/ogg"},
+		{".flac", "audio/x-flac"},
+		{".m4a", "audio/mp4a-latm"},
+	}
+	for _, tc := range cases {
+		path := filepath.Join(dir, "test"+tc.ext)
+		if err := os.WriteFile(path, []byte("fake audio"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		got := detectMimeType("application/octet-stream", "test"+tc.ext, path)
+		if got != tc.want {
+			t.Errorf("detectMimeType(%s) = %q, expected %q", tc.ext, got, tc.want)
+		}
+	}
+}

@@ -48,8 +48,8 @@ body {
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
+  gap: 16px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
   position: relative;
@@ -57,15 +57,17 @@ body {
   z-index: 100;
 }
 .header h1 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin: 0;
 }
 .header h1 .logo {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: block;
 }
@@ -579,6 +581,55 @@ body {
   font-size: 48px;
   opacity: 0.4;
 }
+.item-thumb .audio-player {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+}
+.item-thumb .audio-player .audio-waveform {
+  width: 100%;
+  height: 60px;
+  cursor: pointer;
+  display: block;
+}
+.item-thumb .audio-player .audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.item-thumb .audio-player .audio-play-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.item-thumb .audio-player .audio-play-btn:hover {
+  background: var(--bg-hover);
+}
+.item-thumb .audio-player .audio-play-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.item-thumb .audio-player .audio-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 .item-thumb .code-preview {
   width: 100%;
   height: 100%;
@@ -887,10 +938,15 @@ body {
 /* Responsive */
 @media (max-width: 600px) {
   .items-grid { grid-template-columns: 1fr; }
-  .header { padding: 12px 16px; }
+  .header { padding: 0 12px; gap: 8px; }
+  .header h1 { font-size: 15px; }
+  .header h1 .logo { width: 22px; height: 22px; }
+  .version-badge { display: none; }
   .main { padding: 16px; }
-  .tabs { padding: 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tab { padding: 10px 12px; font-size: 13px; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; }
+  .tab { padding: 0 10px; font-size: 13px; }
+  .tab-icon { width: 14px; height: 14px; }
+  .ttl-select { padding: 4px 8px; font-size: 12px; }
   .log-drawer { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; transform: translateY(calc(100% - 68px)); }
   .log-drawer.open { height: min(62dvh, 560px) !important; }
   .log-drawer-resize { height: 20px; }
@@ -902,19 +958,17 @@ body {
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border);
-  padding: 0 24px;
-  background: var(--bg);
-  position: relative;
-  flex-shrink: 0;
-  top: auto;
-  z-index: 99;
+  flex: 1;
+  justify-content: center;
+  height: 52px;
+  align-items: center;
 }
 .tab {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 10px 20px;
+  padding: 0 16px;
+  height: 100%;
   cursor: pointer;
   border: none;
   background: none;
@@ -1186,6 +1240,13 @@ body {
 
 <div class="header">
   <h1><img src="/icon.svg" class="logo" alt="K"> Klipbord <span class="version-badge" id="versionBadge">{{VERSION}}</span></h1>
+  <div class="tabs">
+    <a class="tab active" data-tab="clipboard" href="/clip" onclick="switchTab('clipboard', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"></rect><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>Clipboard</a>
+    <a class="tab" data-tab="persistent" href="/persist" onclick="switchTab('persistent', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg>Persistent</a>
+    <a class="tab" data-tab="rest" href="/rest-web" onclick="switchTab('rest', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="19" cy="19" r="2"></circle><path d="m7 11 10-5M7 13l10 5"></path></svg>REST API</a>
+    <a class="tab" data-tab="mcp" href="/mcp-web" onclick="switchTab('mcp', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M12 2v4M8 13h.01M16 13h.01M8 17h8"></path></svg>MCP</a>
+    <a class="tab" data-tab="config" href="/config" onclick="switchTab('config', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20.3h-3v-.08A1.7 1.7 0 0 0 10.68 18.66a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.02 15a1.7 1.7 0 0 0-1.56-1.03H5.4v-3h.06A1.7 1.7 0 0 0 7.02 9.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.12-2.12.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V4.7h3v.02a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 8l-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.04v3h-.04A1.7 1.7 0 0 0 19.4 15z"></path></svg>Config</a>
+  </div>
   <div class="header-actions">
     <a class="update-notice" id="updateNotice" hidden target="_blank" rel="noopener">New version available</a>
     <button class="icon-btn" data-tooltip="Help & Shortcuts" onclick="openHelpModal()" style="padding:6px" aria-label="Help">
@@ -1199,14 +1260,6 @@ body {
       <option value="never">Never expires</option>
     </select>
   </div>
-</div>
-
-<div class="tabs">
-  <a class="tab active" data-tab="clipboard" href="/clip" onclick="switchTab('clipboard', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"></rect><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>Clipboard</a>
-  <a class="tab" data-tab="persistent" href="/persist" onclick="switchTab('persistent', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg>Persistent</a>
-  <a class="tab" data-tab="rest" href="/rest-web" onclick="switchTab('rest', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="19" cy="19" r="2"></circle><path d="m7 11 10-5M7 13l10 5"></path></svg>REST API</a>
-  <a class="tab" data-tab="mcp" href="/mcp-web" onclick="switchTab('mcp', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M12 2v4M8 13h.01M16 13h.01M8 17h8"></path></svg>MCP</a>
-  <a class="tab" data-tab="config" href="/config" onclick="switchTab('config', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20.3h-3v-.08A1.7 1.7 0 0 0 10.68 18.66a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.02 15a1.7 1.7 0 0 0-1.56-1.03H5.4v-3h.06A1.7 1.7 0 0 0 7.02 9.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.12-2.12.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V4.7h3v.02a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 8l-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.04v3h-.04A1.7 1.7 0 0 0 19.4 15z"></path></svg>Config</a>
 </div>
 
 <!-- Tab: Clipboard -->
@@ -1949,6 +2002,7 @@ body {
         <tr><td style="padding:3px 0">Tag icon</td><td style="color:var(--text-muted)">Edit MIME type (fix wrong detection)</td></tr>
         <tr><td style="padding:3px 0">Pin</td><td style="color:var(--text-muted)">Keep item forever (exempt from TTL)</td></tr>
         <tr><td style="padding:3px 0">Scan</td><td style="color:var(--text-muted)">Re-run vision analysis (images only)</td></tr>
+        <tr><td style="padding:3px 0">Waveform</td><td style="color:var(--text-muted)">Click to seek, play/pause button (audio files)</td></tr>
       </table>
       <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">MIME Detection</h4>
       <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">When a file is uploaded with a generic type (e.g. <code style="font-family:var(--mono);font-size:11px">application/octet-stream</code> from curl), Klipbord detects the real type from the filename extension first, then by sniffing the file content. Use the tag icon on any file card to override.</p>
@@ -2040,6 +2094,9 @@ const ICONS = {
   scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><line x1="7" y1="12" x2="17" y2="12"></line></svg>',
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
   tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>',
+  audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>',
 };
 
 // --- Browser routes and tab switching ---
@@ -2706,6 +2763,201 @@ function copyImageToClipboard(id) {
       }).catch(() => showToast('Failed to copy image — try a Chromium browser', true));
     })
     .catch(() => showToast('Failed to fetch image', true));
+}
+
+// --- Audio waveform player ---
+// Per-item state: { audio, peaks, duration, playing, progress, rafId, decoded }
+const _audioState = {};
+
+function _formatTime(sec) {
+  if (!sec || !isFinite(sec)) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function _drawAudioWaveform(id) {
+  const state = _audioState[id];
+  if (!state) return;
+  const canvas = document.querySelector(`canvas.audio-waveform[data-audio-id="${id}"]`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.offsetWidth || 200;
+  const h = canvas.height = canvas.offsetHeight || 60;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!state.peaks || state.peaks.length === 0) {
+    // Placeholder line while decoding
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(0, h / 2 - 1, w, 2);
+    return;
+  }
+
+  const barW = w / state.peaks.length;
+  const progressX = state.progress * w;
+  for (let i = 0; i < state.peaks.length; i++) {
+    const barH = Math.max(2, state.peaks[i] * h * 0.85);
+    const x = i * barW;
+    const y = (h - barH) / 2;
+    ctx.fillStyle = x < progressX ? '#f59e0b' : '#475569';
+    ctx.fillRect(x, y, Math.max(1, barW - 0.5), barH);
+  }
+}
+
+function _computePeaks(audioBuffer, numPeaks = 200) {
+  const channelData = audioBuffer.getChannelData(0);
+  const samples = channelData.length;
+  if (samples === 0) return [];
+  const bucketSize = Math.max(1, Math.floor(samples / numPeaks));
+  const peaks = [];
+  for (let i = 0; i < numPeaks; i++) {
+    const start = i * bucketSize;
+    const end = Math.min(start + bucketSize, samples);
+    let max = 0;
+    for (let j = start; j < end; j++) {
+      const v = Math.abs(channelData[j]);
+      if (v > max) max = v;
+    }
+    peaks.push(max);
+  }
+  // Normalize to 0-1
+  const peakMax = Math.max(...peaks, 0.001);
+  return peaks.map(p => p / peakMax);
+}
+
+async function _decodeAudio(id, url) {
+  const state = _audioState[id];
+  if (state.decoded) return;
+  state.decoded = true; // mark early to prevent duplicate fetches
+  try {
+    const resp = await fetch(url);
+    const buf = await resp.arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await ctx.decodeAudioData(buf);
+    state.peaks = _computePeaks(audioBuffer);
+    state.duration = audioBuffer.duration;
+    _drawAudioWaveform(id);
+    _updateAudioTime(id);
+  } catch (err) {
+    // Decoding failed — show flat line, leave time as --:--
+    state.peaks = [];
+    state.decoded = false;
+    _drawAudioWaveform(id);
+  }
+}
+
+function _updateAudioTime(id) {
+  const state = _audioState[id];
+  if (!state) return;
+  const timeEl = document.querySelector(`span.audio-time[data-audio-id="${id}"]`);
+  if (timeEl) {
+    const cur = state.audio ? state.audio.currentTime : 0;
+    timeEl.textContent = `${_formatTime(cur)} / ${_formatTime(state.duration)}`;
+  }
+}
+
+function _updateAudioProgress(id) {
+  const state = _audioState[id];
+  if (!state || !state.audio) return;
+  state.progress = state.duration > 0 ? state.audio.currentTime / state.duration : 0;
+  _drawAudioWaveform(id);
+  _updateAudioTime(id);
+  if (state.playing) {
+    state.rafId = requestAnimationFrame(() => _updateAudioProgress(id));
+  }
+}
+
+function toggleAudioPlay(id, url) {
+  let state = _audioState[id];
+  if (!state) {
+    state = _audioState[id] = { peaks: null, duration: 0, playing: false, progress: 0, decoded: false };
+  }
+
+  // Lazy decode on first interaction
+  if (!state.decoded && !state.peaks) {
+    _decodeAudio(id, url);
+  }
+
+  if (!state.audio) {
+    state.audio = new Audio(url);
+    state.audio.addEventListener('ended', () => {
+      state.playing = false;
+      state.progress = 0;
+      _setPlayBtnIcon(id, false);
+      _drawAudioWaveform(id);
+      _updateAudioTime(id);
+    });
+  }
+
+  if (state.audio.paused) {
+    state.audio.play().then(() => {
+      state.playing = true;
+      _setPlayBtnIcon(id, true);
+      _updateAudioProgress(id);
+    }).catch(() => {});
+  } else {
+    state.audio.pause();
+    state.playing = false;
+    _setPlayBtnIcon(id, false);
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+  }
+}
+
+function _setPlayBtnIcon(id, playing) {
+  const btn = document.querySelector(`button.audio-play-btn[data-audio-id="${id}"]`);
+  if (btn) btn.innerHTML = playing ? ICONS.pause : ICONS.play;
+}
+
+function seekAudio(id, e) {
+  const state = _audioState[id];
+  if (!state || !state.duration) return;
+  const canvas = document.querySelector(`canvas.audio-waveform[data-audio-id="${id}"]`);
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  if (!state.audio) {
+    state.audio = new Audio(canvas.closest('.audio-player').dataset.audioUrl);
+    state.audio.addEventListener('ended', () => {
+      state.playing = false;
+      state.progress = 0;
+      _setPlayBtnIcon(id, false);
+      _drawAudioWaveform(id);
+      _updateAudioTime(id);
+    });
+  }
+  state.audio.currentTime = pct * state.duration;
+  state.progress = pct;
+  _drawAudioWaveform(id);
+  _updateAudioTime(id);
+}
+
+// Wire up click-to-seek on waveform canvases (delegated)
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains('audio-waveform')) {
+    const id = e.target.dataset.audioId;
+    if (id) seekAudio(id, e);
+  }
+});
+
+// Lazy-decode audio waveforms when they scroll into view
+function initAudioWaveforms(items) {
+  const audioItems = items.filter(i => i.mime_type && i.mime_type.startsWith('audio/'));
+  if (audioItems.length === 0) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const player = entry.target;
+        const id = player.dataset.audioId;
+        const url = player.dataset.audioUrl;
+        if (id && url) _decodeAudio(id, url);
+        observer.unobserve(player);
+      }
+    });
+  }, { rootMargin: '100px' });
+  audioItems.forEach(item => {
+    const el = document.querySelector(`.audio-player[data-audio-id="${item.id}"]`);
+    if (el) observer.observe(el);
+  });
 }
 
 // --- Camera ---
@@ -4173,6 +4425,7 @@ function loadItems() {
     .then(data => {
       allClipboardItems = data.items || [];
       loadTextPreviews(allClipboardItems);
+      initAudioWaveforms(allClipboardItems);
       renderClipboardGrid();
       clipboardLoadedOnce = true;
     })
@@ -4240,6 +4493,7 @@ function loadPersistentItems() {
       allPersistentItems = items;
       renderPersistentGrid();
       loadTextPreviews(allPersistentItems);
+      initAudioWaveforms(allPersistentItems);
     });
 }
 
@@ -4282,6 +4536,14 @@ function renderItemCard(item, isPersistent) {
     thumb = `<div class="item-thumb"><div class="code-preview" data-preview-id="${item.id}">Loading...</div></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
     thumb = `<div class="item-thumb"><img src="${linkPath}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('${linkPath}')"></div>`;
+  } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
+    thumb = `<div class="item-thumb"><div class="audio-player" data-audio-id="${item.id}" data-audio-url="${linkPath}">
+      <canvas class="audio-waveform" data-audio-id="${item.id}"></canvas>
+      <div class="audio-controls">
+        <button class="audio-play-btn" data-audio-id="${item.id}" onclick="toggleAudioPlay('${item.id}', '${linkPath}')">${ICONS.play}</button>
+        <span class="audio-time" data-audio-id="${item.id}">--:-- / --:--</span>
+      </div>
+    </div></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
@@ -4312,6 +4574,16 @@ function renderItemCard(item, isPersistent) {
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
       <button class="icon-btn" data-tooltip="Re-analyze with vision model" onclick="reanalyzeImage('${item.id}')">${ICONS.scan}</button>
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
+    actions = `
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
       <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
       <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
