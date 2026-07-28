@@ -209,3 +209,26 @@ func TestDetectMimeTypeAudioExtensions(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectMimeTypeVideoExtensions(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		ext, want string
+	}{
+		{".mp4", "video/mp4"},
+		{".webm", "video/webm"},
+		{".mkv", "video/x-matroska"},
+		{".avi", "video/x-msvideo"},
+		{".mov", "video/quicktime"},
+	}
+	for _, tc := range cases {
+		path := filepath.Join(dir, "test"+tc.ext)
+		if err := os.WriteFile(path, []byte("fake video"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		got := detectMimeType("application/octet-stream", "test"+tc.ext, path)
+		if got != tc.want {
+			t.Errorf("detectMimeType(%s) = %q, expected %q", tc.ext, got, tc.want)
+		}
+	}
+}
