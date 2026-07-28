@@ -2943,20 +2943,23 @@ document.addEventListener('click', (e) => {
 function initAudioWaveforms(items) {
   const audioItems = items.filter(i => i.mime_type && i.mime_type.startsWith('audio/'));
   if (audioItems.length === 0) return;
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const player = entry.target;
-        const id = player.dataset.audioId;
-        const url = player.dataset.audioUrl;
-        if (id && url) _decodeAudio(id, url);
-        observer.unobserve(player);
-      }
+  // Defer to next frame so the DOM is fully laid out before we observe
+  requestAnimationFrame(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const player = entry.target;
+          const id = player.dataset.audioId;
+          const url = player.dataset.audioUrl;
+          if (id && url) _decodeAudio(id, url);
+          observer.unobserve(player);
+        }
+      });
+    }, { rootMargin: '100px' });
+    audioItems.forEach(item => {
+      const el = document.querySelector(`.audio-player[data-audio-id="${item.id}"]`);
+      if (el) observer.observe(el);
     });
-  }, { rootMargin: '100px' });
-  audioItems.forEach(item => {
-    const el = document.querySelector(`.audio-player[data-audio-id="${item.id}"]`);
-    if (el) observer.observe(el);
   });
 }
 
@@ -4425,8 +4428,8 @@ function loadItems() {
     .then(data => {
       allClipboardItems = data.items || [];
       loadTextPreviews(allClipboardItems);
-      initAudioWaveforms(allClipboardItems);
       renderClipboardGrid();
+      initAudioWaveforms(allClipboardItems);
       clipboardLoadedOnce = true;
     })
     .catch(err => {
