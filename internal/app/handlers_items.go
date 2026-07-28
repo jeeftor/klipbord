@@ -43,7 +43,7 @@ func apiFilesHandler(w http.ResponseWriter, r *http.Request) {
 			"expires":    item.Expires,
 			"ttl":        item.TTL,
 			"persistent": item.Persistent,
-			"url":        linkURL(item.ID),
+			"url":        linkURL(item.ID, item.Name),
 		}
 		if len(item.Analyses) > 0 {
 			if includeAnalysisContent {
@@ -98,7 +98,7 @@ func apiFileHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 			return
 		}
-		writeJSON(w, map[string]string{"url": linkURL(item.ID)})
+		writeJSON(w, map[string]string{"url": linkURL(item.ID, item.Name)})
 		return
 	}
 
@@ -114,24 +114,30 @@ func apiFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	case http.MethodPatch:
 		var request struct {
-			Persistent *bool `json:"persistent"`
+			Persistent *bool   `json:"persistent"`
+			MimeType   *string `json:"mime_type"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
 			return
 		}
-		if request.Persistent == nil {
-			http.Error(w, `{"error":"persistent field required"}`, http.StatusBadRequest)
+		if request.Persistent == nil && request.MimeType == nil {
+			http.Error(w, `{"error":"persistent or mime_type field required"}`, http.StatusBadRequest)
 			return
 		}
 		if !updateItem(id, func(item *Item) bool {
-			item.Persistent = *request.Persistent
-			if item.Persistent {
-				item.Expires = time.Time{}
-				item.TTL = "never"
-			} else {
-				item.Expires = time.Now().Add(defaultTTL)
-				item.TTL = ttlString(defaultTTL)
+			if request.Persistent != nil {
+				item.Persistent = *request.Persistent
+				if item.Persistent {
+					item.Expires = time.Time{}
+					item.TTL = "never"
+				} else {
+					item.Expires = time.Now().Add(defaultTTL)
+					item.TTL = ttlString(defaultTTL)
+				}
+			}
+			if request.MimeType != nil && item.Type == "file" {
+				item.MimeType = *request.MimeType
 			}
 			return true
 		}) {
@@ -142,6 +148,7 @@ func apiFileHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]interface{}{
 			"id":         updated.ID,
 			"persistent": updated.Persistent,
+			"mime_type":  updated.MimeType,
 			"expires":    updated.Expires,
 			"ttl":        updated.TTL,
 		})
@@ -211,7 +218,7 @@ func apiTextHandler(w http.ResponseWriter, r *http.Request) {
 		expires = time.Now().Add(ttl)
 	}
 	addItem(Item{ID: id, Name: name, Type: "text", Size: int64(len(request.Content)), Created: time.Now(), Expires: expires, TTL: ttlString(ttl)})
-	writeJSON(w, map[string]interface{}{"id": id, "name": name, "url": linkURL(id)})
+	writeJSON(w, map[string]interface{}{"id": id, "name": name, "url": linkURL(id, name)})
 }
 
 func apiTextItemHandler(w http.ResponseWriter, r *http.Request) {

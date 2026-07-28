@@ -1097,6 +1097,18 @@ body {
 .api-example .url { color: var(--text); }
 .api-example .json-key { color: #79b8ff; }
 .api-example .json-str { color: #7ee787; }
+.api-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.api-note code {
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-family: var(--mono);
+}
 .copy-btn {
   float: right;
   font-size: 11px;
@@ -1176,6 +1188,9 @@ body {
   <h1><img src="/icon.svg" class="logo" alt="K"> Klipbord <span class="version-badge" id="versionBadge">{{VERSION}}</span></h1>
   <div class="header-actions">
     <a class="update-notice" id="updateNotice" hidden target="_blank" rel="noopener">New version available</a>
+    <button class="icon-btn" data-tooltip="Help & Shortcuts" onclick="openHelpModal()" style="padding:6px" aria-label="Help">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    </button>
     <select class="ttl-select" id="ttl">
       <option value="1h">Expires in 1 hour</option>
       <option value="1d">Expires in 1 day</option>
@@ -1579,12 +1594,13 @@ body {
     <div class="api-card">
       <div class="api-card-header">
         <span class="api-method GET">GET</span>
-        <span class="api-path">/link/{id}</span>
+        <span class="api-path">/{id}</span>
         <span class="api-desc">Direct item access (file, image, or text)</span>
       </div>
       <div class="api-card-body">
         <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
-        <div class="api-example"><span class="url" id="restUrl7"></span>/link/<span class="json-key">{id}</span></div>
+        <div class="api-example"><span class="url" id="restUrl7"></span>/<span class="json-key">{id}</span></div>
+        <div class="api-note">Append <code>/filename.ext</code> so download tools save with the right name, or add <code>?download=1</code> to force a download. The legacy <code>/link/{id}</code> form also works.</div>
       </div>
     </div>
 
@@ -1906,6 +1922,40 @@ body {
   </div>
 </div>
 
+<!-- Help modal -->
+<div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeHelpModal()" hidden>
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3>Help & Shortcuts</h3>
+      <button class="icon-btn" data-tooltip="Close" onclick="closeHelpModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Keyboard</h4>
+      <table style="width:100%;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:3px 0"><kbd>Ctrl+V</kbd></td><td style="color:var(--text-muted)">Paste image or text from clipboard</td></tr>
+        <tr><td style="padding:3px 0"><kbd>Esc</kbd></td><td style="color:var(--text-muted)">Close modal / lightbox</td></tr>
+      </table>
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Share Links</h4>
+      <table style="width:100%;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}/{filename}</td><td style="color:var(--text-muted)">Canonical link — filename visible in URL</td></tr>
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}</td><td style="color:var(--text-muted)">Auto-redirects to named form</td></tr>
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}?download=1</td><td style="color:var(--text-muted)">Forces browser download</td></tr>
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}?direct=1</td><td style="color:var(--text-muted)">Serve inline, skip redirect (curl -O)</td></tr>
+      </table>
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">File Cards</h4>
+      <table style="width:100%;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:3px 0">Open</td><td style="color:var(--text-muted)">View inline in a new tab</td></tr>
+        <tr><td style="padding:3px 0">Download</td><td style="color:var(--text-muted)">Save with the original filename</td></tr>
+        <tr><td style="padding:3px 0">Tag icon</td><td style="color:var(--text-muted)">Edit MIME type (fix wrong detection)</td></tr>
+        <tr><td style="padding:3px 0">Pin</td><td style="color:var(--text-muted)">Keep item forever (exempt from TTL)</td></tr>
+        <tr><td style="padding:3px 0">Scan</td><td style="color:var(--text-muted)">Re-run vision analysis (images only)</td></tr>
+      </table>
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">MIME Detection</h4>
+      <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">When a file is uploaded with a generic type (e.g. <code style="font-family:var(--mono);font-size:11px">application/octet-stream</code> from curl), Klipbord detects the real type from the filename extension first, then by sniffing the file content. Use the tag icon on any file card to override.</p>
+    </div>
+  </div>
+</div>
+
 <!-- Live log drawer -->
 <aside class="log-drawer" id="logDrawer" aria-label="Server logs">
   <div class="log-drawer-resize" id="logDrawerResize" aria-hidden="true"></div>
@@ -1988,6 +2038,8 @@ const ICONS = {
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg>',
   scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><line x1="7" y1="12" x2="17" y2="12"></line></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
+  tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>',
 };
 
 // --- Browser routes and tab switching ---
@@ -2571,15 +2623,46 @@ async function deleteItem(id, name) {
     .catch(err => showToast('Delete failed: ' + err, true));
 }
 
-function copyUrl(id) {
-  const url = `${window.location.origin}/link/${id}`;
+function itemLinkPath(id, name) {
+  // Use the short form /{id} (or /{id}/{filename}) so share links are
+  // compact. The /link/{id} form still works for backwards compatibility.
+  if (name) {
+    const safe = name.split('/').pop().replace(/[\x00\\/]/g, '');
+    if (safe && safe !== '.' && safe !== '..') {
+      return `/${id}/${encodeURIComponent(safe)}`;
+    }
+  }
+  return `/${id}`;
+}
+
+function editMimeType(id, currentMime, name) {
+  const input = prompt(`Edit MIME type for "${name}":`, currentMime || 'application/octet-stream');
+  if (input === null) return; // user cancelled
+  const mime = input.trim();
+  if (mime === '') { showToast('MIME type cannot be empty', true); return; }
+  fetch(`${API}/files/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mime_type: mime }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showToast('Error: ' + data.error, true); return; }
+      showToast(`Updated MIME type to ${data.mime_type}`);
+      loadClipboard();
+    })
+    .catch(err => showToast('Update failed: ' + err, true));
+}
+
+function copyUrl(id, name) {
+  const url = `${window.location.origin}${itemLinkPath(id, name)}`;
   navigator.clipboard.writeText(url).then(() => {
     showToast(`Copied URL: ${url}`);
   });
 }
 
 function shareItem(id, type, name) {
-  const url = `${window.location.origin}/link/${id}`;
+  const url = `${window.location.origin}${itemLinkPath(id, name)}`;
   if (navigator.share) {
     navigator.share({ title: name, url: url }).catch(() => {});
   } else {
@@ -2589,8 +2672,8 @@ function shareItem(id, type, name) {
   }
 }
 
-function copyTextUrl(id) {
-  const url = `${window.location.origin}/link/${id}`;
+function copyTextUrl(id, name) {
+  const url = `${window.location.origin}${itemLinkPath(id, name)}`;
   navigator.clipboard.writeText(url).then(() => {
     showToast(`Copied URL: ${url}`);
   });
@@ -2609,7 +2692,8 @@ function copyTextContent(id) {
 }
 
 function copyImageToClipboard(id) {
-  fetch(`/link/${id}`)
+  // Use ?direct=1 to skip the filename redirect when fetching for clipboard
+  fetch(`/link/${id}?direct=1`)
     .then(r => r.blob())
     .then(blob => {
       if (!navigator.clipboard || !navigator.clipboard.write) {
@@ -2707,7 +2791,7 @@ function copyModalUrl() {
   if (!currentModalId) return;
   const item = window._currentItem;
   if (!item) return;
-  const url = `${window.location.origin}/link/${item.id}`;
+  const url = `${window.location.origin}${itemLinkPath(item.id, item.name)}`;
   navigator.clipboard.writeText(url).then(() => showToast(`Copied: ${url}`));
 }
 
@@ -2816,6 +2900,18 @@ function closeModal() {
   document.getElementById('modal').classList.remove('show');
   document.getElementById('modalCopyContentBtn').style.display = 'none';
   currentModalId = null;
+}
+
+// --- Help modal ---
+function openHelpModal() {
+  const el = document.getElementById('helpModal');
+  el.hidden = false;
+  el.classList.add('show');
+}
+function closeHelpModal() {
+  const el = document.getElementById('helpModal');
+  el.hidden = true;
+  el.classList.remove('show');
 }
 
 // --- Settings ---
@@ -4179,11 +4275,13 @@ function renderPersistentGrid() {
 }
 
 function renderItemCard(item, isPersistent) {
+  const linkPath = itemLinkPath(item.id, item.name);
+  const downloadPath = `${linkPath}?download=1`;
   let thumb = '';
   if (item.type === 'text') {
     thumb = `<div class="item-thumb"><div class="code-preview" data-preview-id="${item.id}">Loading...</div></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
-    thumb = `<div class="item-thumb"><img src="/link/${item.id}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('/link/${item.id}')"></div>`;
+    thumb = `<div class="item-thumb"><img src="${linkPath}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('${linkPath}')"></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
@@ -4203,25 +4301,29 @@ function renderItemCard(item, isPersistent) {
       <button class="icon-btn" data-tooltip="Copy content to clipboard" onclick="copyTextContent('${item.id}')">${ICONS.copy}</button>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'text', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
-      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyTextUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyTextUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
     actions = `
-      <a class="icon-btn" data-tooltip="Open" href="/link/${item.id}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
       <button class="icon-btn" data-tooltip="Copy image to clipboard" onclick="copyImageToClipboard('${item.id}')">${ICONS.image}</button>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
       <button class="icon-btn" data-tooltip="Re-analyze with vision model" onclick="reanalyzeImage('${item.id}')">${ICONS.scan}</button>
-      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   } else {
     actions = `
-      <a class="icon-btn" data-tooltip="Open" href="/link/${item.id}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
-      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   }

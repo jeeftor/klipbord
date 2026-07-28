@@ -30,6 +30,8 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 | **Client-side Search** | Search filenames, vision OCR text, and paste content across both tabs |
 | **Auto-expire** | Configurable TTL per item (1h, 1d, 7d, 30d, never) |
 | **Persistent Pinning** | Mark items as persistent to exempt from expiry |
+| **Smart MIME Detection** | Auto-detects file type from extension + content sniffing when client sends a generic type |
+| **Short Links** | Shareable `/{id}/{filename}` URLs with auto-redirect, `?download=1`, and `?direct=1` |
 | **OpenAPI 3.0** | Machine-readable spec at `/api/openapi.json` + Swagger UI |
 | **Single Go binary** | No runtime dependencies; built-in race-enabled test and static-analysis checks |
 
@@ -130,7 +132,7 @@ curl /api/files/{id}   # both results returned in analyses field
 
 ```bash
 curl /api/files                                          # list all
-curl -F 'file=@screenshot.png' -F 'ttl=7d' /api/upload  # upload file
+curl -F 'file=@screenshot.png' -F 'ttl=7d' /api/upload  # upload file (MIME auto-detected)
 curl /api/files/{id} -o file.png                         # download
 curl -X POST -H 'Content-Type: application/json' \
   -d '{"content":"hello","name":"note.txt","ttl":"7d"}' /api/text   # create text snippet
@@ -138,6 +140,8 @@ curl /api/text/{id}                                      # get raw text
 curl -X DELETE /api/files/{id}                           # delete
 curl -X PATCH -H 'Content-Type: application/json' \
   -d '{"persistent":true}' /api/files/{id}              # pin/unpin
+curl -X PATCH -H 'Content-Type: application/json' \
+  -d '{"mime_type":"image/gif"}' /api/files/{id}        # fix MIME type
 ```
 
 </details>
@@ -275,7 +279,11 @@ curl /api/openapi.json
 ## Direct Links
 
 ```
-https://klipbord.example.com/link/{id} # file, image, or text snippet
+https://klipbord.example.com/{id}/{filename}     # canonical share link (filename visible in URL)
+https://klipbord.example.com/{id}                # redirects to /{id}/{filename}
+https://klipbord.example.com/{id}?direct=1       # serves inline, no redirect (curl -O friendly)
+https://klipbord.example.com/{id}?download=1     # redirects to named URL, forces download
+https://klipbord.example.com/link/{id}           # legacy form (still works)
 ```
 
 ---
@@ -292,7 +300,7 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 | `/mcp-web` | MCP setup and tool reference |
 | `/rest-web` | REST API reference |
 
-`/` redirects to `/clip`. The browser UI routes are intentionally separate from the machine interfaces: REST remains under `/api/...`, MCP remains at `/mcp`, and direct item links remain under `/link/{id}`.
+`/` redirects to `/clip`. The browser UI routes are intentionally separate from the machine interfaces: REST remains under `/api/...`, MCP remains at `/mcp`, and direct item links use the short form `/{id}` (with `/link/{id}` as a legacy alias).
 
 ---
 
@@ -306,6 +314,25 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 | `{DATA_DIR}/metadata.json` | Item metadata (IDs, names, MIME, TTL, analyses) |
 | `{DATA_DIR}/prompts.json` | Custom vision prompts |
 | `{DATA_DIR}/vision_config.json` | Vision LLM presets and active selection |
+
+---
+
+## Changelog
+
+### v2.6.0
+
+- **Short links**: Shareable URLs are now `/{id}/{filename}` instead of `/link/{id}`. Bare `/{id}` auto-redirects to the named form so download tools and AI agents see the correct filename. `/link/{id}` still works as a legacy alias.
+- **MIME auto-detection**: Uploads with a generic `Content-Type` (e.g. `application/octet-stream` from curl) now detect the real type from the filename extension first, then content sniffing. A `.gif` uploaded via curl is correctly stored as `image/gif`.
+- **Download button**: File and image cards now have a dedicated download button that forces `Content-Disposition: attachment`.
+- **MIME type editing**: `PATCH /api/files/{id}` accepts a `mime_type` field. An in-app tag icon on each file card lets you fix a wrong MIME type manually.
+- **HEAD support**: `HEAD /{id}` returns headers (filename, content-type, size) without the body — useful for AI tools to cheaply inspect an item.
+- **`?direct=1`**: Skips the filename redirect for `curl -O` compatibility without `-L`.
+
+### v2.5.9
+
+- Vision evidence inspection (`inspect_image` MCP tool)
+- Live log drawer
+- Clipboard loading state fixes
 
 ---
 
