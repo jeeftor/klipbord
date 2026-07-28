@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'release' || (github.event.workflow_run.conclusion == 'failure') }}
     steps:
+      - name: Checkout (for icon)
+        uses: actions/checkout@v4
+
       - name: Send release notification
         if: ${{ github.event_name == 'release' }}
         uses: appleboy/telegram-action@master
@@ -19,7 +22,7 @@ jobs:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           format: html
-          disable_web_page_preview: true
+          photo: internal/webassets/static/icon.png
           message: |
             🚀 <b>Klipbord ${{ github.event.release.tag_name }}</b>
 
