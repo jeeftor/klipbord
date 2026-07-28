@@ -320,6 +320,11 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 
 ## Changelog
 
+### v2.8.0
+
+- **Telegram notifications**: CI sends release announcements and CI failure alerts to a Telegram channel via bot. Requires `TELEGRAM_TOKEN` and `TELEGRAM_TO` repo secrets.
+- **Canonical audio MIME types**: Registers `.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`, `.aac`, `.opus` at init time via `mime.AddExtensionType` so detection is consistent across Linux and macOS.
+
 ### v2.7.0
 
 - **Audio waveform player**: Audio files (MP3, WAV, OGG, FLAC, M4A) now show a canvas waveform with play/pause, click-to-seek, and progress overlay. Peaks are computed client-side via the Web Audio API — no backend dependencies. Waveforms lazy-decode when scrolled into view.
@@ -351,6 +356,18 @@ make test    # go test ./...
 ```
 
 Tests use a mock vision server — no external LLM required. CI runs tests before building the Docker image; the `build` job is gated on `test`.
+
+### Telegram Notifications
+
+CI sends notifications to Telegram on release publishes and CI failures. To enable, set two repo secrets:
+
+```bash
+gh secret set TELEGRAM_TOKEN --repo $(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh secret set TELEGRAM_TO --repo $(gh repo view --json nameWithOwner -q .nameWithOwner)
+```
+
+- `TELEGRAM_TOKEN` — bot token from [@BotFather](https://t.me/BotFather)
+- `TELEGRAM_TO` — channel ID (`@yourchannel` or `-1001234567890` for private channels)
 
 ---
 
