@@ -98,7 +98,7 @@ jobs:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           format: html
-          photo: https://raw.githubusercontent.com/jeeftor/klipbord/master/internal/webassets/static/icon.png
+          disable_web_page_preview: true
           message: |
             🚀 <b>Klipbord ${{ github.ref_name }}</b>
 
