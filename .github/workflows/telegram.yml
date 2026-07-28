@@ -1,0 +1,42 @@
+name: Telegram Notifications
+
+on:
+  release:
+    types: [published]
+  workflow_run:
+    workflows: ["CI and Container Image"]
+    types: [completed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    # Only notify on release, or on CI failure (not on success — that's
+    # covered by the release notification itself)
+    if: ${{ github.event_name == 'release' || (github.event.workflow_run.conclusion == 'failure') }}
+    steps:
+      - name: Send release notification
+        if: ${{ github.event_name == 'release' }}
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            *Klipbord ${{ github.event.release.tag_name }}* released
+
+            ${{ github.event.release.body }}
+
+            [View release](${{ github.event.release.html_url }})
+            [Docker image](https://github.com/jeeftor/klipbord/pkgs/container/klipbord)
+
+      - name: Send CI failure notification
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' }}
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            ❌ *CI failed* on `${{ github.event.workflow_run.head_branch }}`
+
+            [View run](${{ github.event.workflow_run.html_url }})
