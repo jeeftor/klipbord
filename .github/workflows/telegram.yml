@@ -10,8 +10,6 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    # Only notify on release, or on CI failure (not on success — that's
-    # covered by the release notification itself)
     if: ${{ github.event_name == 'release' || (github.event.workflow_run.conclusion == 'failure') }}
     steps:
       - name: Send release notification
@@ -20,14 +18,12 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
-          format: markdown
+          format: html
+          disable_web_page_preview: true
           message: |
-            *Klipbord ${{ github.event.release.tag_name }}* released
+            🚀 <b>Klipbord ${{ github.event.release.tag_name }}</b>
 
-            ${{ github.event.release.body }}
-
-            [View release](${{ github.event.release.html_url }})
-            [Docker image](https://github.com/jeeftor/klipbord/pkgs/container/klipbord)
+            <a href="${{ github.event.release.html_url }}">Release notes</a> · <a href="https://github.com/jeeftor/klipbord/pkgs/container/klipbord">Docker image</a>
 
       - name: Send CI failure notification
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' }}
@@ -35,8 +31,9 @@ jobs:
         with:
           to: ${{ secrets.TELEGRAM_TO }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
-          format: markdown
+          format: html
+          disable_web_page_preview: true
           message: |
-            ❌ *CI failed* on `${{ github.event.workflow_run.head_branch }}`
+            ❌ <b>CI failed</b> on <code>${{ github.event.workflow_run.head_branch }}</code>
 
-            [View run](${{ github.event.workflow_run.html_url }})
+            <a href="${{ github.event.workflow_run.html_url }}">View run</a>
