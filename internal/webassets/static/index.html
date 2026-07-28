@@ -2840,17 +2840,22 @@ function _computePeaks(audioBuffer, numPeaks = 200) {
 }
 
 async function _decodeAudio(id, url) {
-  const state = _audioState[id];
+  let state = _audioState[id];
+  if (!state) {
+    state = _audioState[id] = { peaks: null, duration: 0, playing: false, progress: 0, decoded: false };
+  }
   if (state.decoded) return;
   state.decoded = true;
   try {
     const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const buf = await resp.arrayBuffer();
     const fileSize = buf.byteLength;
     // Use OfflineAudioContext for decoding — it doesn't require a user gesture
     // and works even when a regular AudioContext would be suspended by the
     // browser's autoplay policy.
     const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx) throw new Error('OfflineAudioContext not supported');
     const ctx = new Ctx(1, 1, 44100);
     const audioBuffer = await ctx.decodeAudioData(buf);
     state.peaks = _computePeaks(audioBuffer);
@@ -2863,6 +2868,7 @@ async function _decodeAudio(id, url) {
     _updateAudioTime(id);
     _updateAudioInfo(id);
   } catch (err) {
+    console.warn(`[audio] decode failed for ${id}:`, err);
     state.peaks = [];
     state.decoded = false;
     _drawAudioWaveform(id);
@@ -2911,8 +2917,8 @@ function toggleAudioPlay(id, url) {
     state = _audioState[id] = { peaks: null, duration: 0, playing: false, progress: 0, decoded: false };
   }
 
-  // Lazy decode on first interaction
-  if (!state.decoded && !state.peaks) {
+  // Lazy decode on first interaction (in case IntersectionObserver failed)
+  if (!state.decoded) {
     _decodeAudio(id, url);
   }
 
