@@ -32,6 +32,7 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 | **Persistent Pinning** | Mark items as persistent to exempt from expiry |
 | **Smart MIME Detection** | Auto-detects file type from extension + content sniffing when client sends a generic type |
 | **Short Links** | Shareable `/{id}/{filename}` URLs with auto-redirect, `?download=1`, and `?direct=1` |
+| **Audio Waveform** | In-browser waveform player with play/pause, seek, and progress for MP3/WAV/OGG/FLAC |
 | **OpenAPI 3.0** | Machine-readable spec at `/api/openapi.json` + Swagger UI |
 | **Single Go binary** | No runtime dependencies; built-in race-enabled test and static-analysis checks |
 
@@ -318,6 +319,11 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 ---
 
 ## Changelog
+
+### v2.7.0
+
+- **Audio waveform player**: Audio files (MP3, WAV, OGG, FLAC, M4A) now show a canvas waveform with play/pause, click-to-seek, and progress overlay. Peaks are computed client-side via the Web Audio API — no backend dependencies. Waveforms lazy-decode when scrolled into view.
+- **Single-line toolbar**: Header and tab bar merged into one row — logo+version (left), tabs (center), help+TTL (right). More compact, less vertical space wasted.
 
 ### v2.6.0
 
