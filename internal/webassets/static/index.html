@@ -571,6 +571,63 @@ body {
   font-size: 48px;
   opacity: 0.4;
 }
+.item-thumb .doc-preview {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-card);
+}
+.item-thumb .doc-preview h1,
+.item-thumb .doc-preview h2,
+.item-thumb .doc-preview h3 {
+  font-size: 13px;
+  margin: 8px 0 4px;
+  color: var(--text);
+}
+.item-thumb .doc-preview p { margin: 4px 0; }
+.item-thumb .doc-preview code {
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+.item-thumb .doc-preview pre {
+  background: var(--bg);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 10px;
+  margin: 6px 0;
+}
+.item-thumb .doc-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.item-thumb .doc-preview th,
+.item-thumb .doc-preview td {
+  border: 1px solid var(--border);
+  padding: 3px 6px;
+  text-align: left;
+}
+.item-thumb .doc-preview th {
+  background: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+}
+.item-thumb .doc-preview th:hover { background: var(--bg-hover); }
+.item-thumb .doc-preview .json-key { color: #58a6ff; }
+.item-thumb .doc-preview .json-string { color: #7ee787; }
+.item-thumb .doc-preview .json-number { color: #f0883e; }
+.item-thumb .doc-preview .json-bool { color: #d2a8ff; }
+.item-thumb .doc-preview .json-null { color: var(--text-muted); }
 .item-thumb .audio-player {
   width: 100%;
   height: 100%;
@@ -2009,6 +2066,10 @@ body {
         <tr><td style="padding:3px 0">Scan</td><td style="color:var(--text-muted)">Re-run vision analysis (images only)</td></tr>
         <tr><td style="padding:3px 0">Waveform</td><td style="color:var(--text-muted)">Click to seek, play/pause button (audio files)</td></tr>
         <tr><td style="padding:3px 0">Video</td><td style="color:var(--text-muted)">Inline player with controls (MP4, WebM, MOV)</td></tr>
+        <tr><td style="padding:3px 0">PDF</td><td style="color:var(--text-muted)">Inline viewer with browser's native reader</td></tr>
+        <tr><td style="padding:3px 0">Markdown</td><td style="color:var(--text-muted)">Rendered as formatted HTML</td></tr>
+        <tr><td style="padding:3px 0">JSON</td><td style="color:var(--text-muted)">Pretty-printed with syntax highlighting</td></tr>
+        <tr><td style="padding:3px 0">CSV/TSV</td><td style="color:var(--text-muted)">Table view with click-to-sort columns</td></tr>
       </table>
       <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">MIME Detection</h4>
       <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">When a file is uploaded with a generic type (e.g. <code style="font-family:var(--mono);font-size:11px">application/octet-stream</code> from curl), Klipbord detects the real type from the filename extension first, then by sniffing the file content. Use the tag icon on any file card to override.</p>
@@ -4542,6 +4603,7 @@ function loadItems() {
       loadTextPreviews(allClipboardItems);
       renderClipboardGrid();
       initAudioWaveforms(allClipboardItems);
+      initDocPreviews();
       clipboardLoadedOnce = true;
     })
     .catch(err => {
@@ -4609,6 +4671,7 @@ function loadPersistentItems() {
       renderPersistentGrid();
       loadTextPreviews(allPersistentItems);
       initAudioWaveforms(allPersistentItems);
+      initDocPreviews();
     });
 }
 
@@ -4641,6 +4704,137 @@ function renderPersistentGrid() {
   count.textContent = query
     ? `${filtered.length} of ${items.length} item${items.length !== 1 ? 's' : ''}`
     : `${items.length} item${items.length !== 1 ? 's' : ''}`;
+}
+
+// --- Document previews (markdown, JSON, CSV) ---
+function initDocPreviews() {
+  document.querySelectorAll('.doc-preview[data-doc-id]').forEach(el => {
+    if (el.dataset.loaded) return;
+    el.dataset.loaded = '1';
+    const type = el.dataset.docType;
+    const url = el.dataset.docUrl;
+    fetch(url).then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(text => {
+      if (type === 'markdown') renderMarkdown(el, text);
+      else if (type === 'json') renderJSON(el, text);
+      else if (type === 'csv') renderCSV(el, text);
+    }).catch(() => { el.textContent = 'Failed to load'; });
+  });
+}
+
+function renderMarkdown(el, md) {
+  const lines = md.split('\n');
+  let html = '', inList = false, inCode = false, codeBuf = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim().startsWith('```')) {
+      if (inCode) { html += '<pre><code>' + escapeHtml(codeBuf) + '</code></pre>'; codeBuf = ''; inCode = false; }
+      else { if (inList) { html += '</ul>'; inList = false; } inCode = true; }
+      continue;
+    }
+    if (inCode) { codeBuf += line + '\n'; continue; }
+    if (/^#{1,6}\s/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      const lvl = line.match(/^#+/)[0].length;
+      html += '<h' + Math.min(lvl,3) + '>' + _mdInline(line.replace(/^#+\s/, '')) + '</h' + Math.min(lvl,3) + '>';
+    } else if (/^[-*]\s/.test(line)) {
+      if (!inList) { html += '<ul style="margin:4px 0;padding-left:16px">'; inList = true; }
+      html += '<li>' + _mdInline(line.replace(/^[-*]\s/, '')) + '</li>';
+    } else if (/^---+$/.test(line.trim())) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">';
+    } else if (line.trim() === '') {
+      if (inList) { html += '</ul>'; inList = false; }
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<p>' + _mdInline(line) + '</p>';
+    }
+  }
+  if (inList) html += '</ul>';
+  if (inCode) html += '<pre><code>' + escapeHtml(codeBuf) + '</code></pre>';
+  el.innerHTML = html;
+}
+
+function _mdInline(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+}
+
+function renderJSON(el, text) {
+  try {
+    const obj = JSON.parse(text);
+    el.innerHTML = _jsonHighlight(JSON.stringify(obj, null, 2));
+  } catch(e) {
+    el.innerHTML = '<pre>' + escapeHtml(text) + '</pre>';
+  }
+}
+
+function _jsonHighlight(json) {
+  return escapeHtml(json)
+    .replace(/&quot;([^&]+)&quot;:/g, '<span class="json-key">&quot;$1&quot;</span>:')
+    .replace(/: &quot;([^&]*)&quot;/g, ': <span class="json-string">&quot;$1&quot;</span>')
+    .replace(/: (-?\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>')
+    .replace(/: null/g, ': <span class="json-null">null</span>');
+}
+
+function renderCSV(el, text) {
+  const sep = el.dataset.docType === 'tsv' ? '\t' : ',';
+  const rows = _parseCSV(text, sep);
+  if (rows.length === 0) { el.textContent = '(empty)'; return; }
+  const headers = rows[0];
+  let html = '<table><thead><tr>';
+  headers.forEach((h, i) => { html += '<th data-col="' + i + '">' + escapeHtml(h) + '</th>'; });
+  html += '</tr></thead><tbody>';
+  for (let r = 1; r < rows.length; r++) {
+    html += '<tr>';
+    for (let c = 0; c < headers.length; c++) { html += '<td>' + escapeHtml(rows[r][c] || '') + '</td>'; }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  el.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      const tbody = el.querySelector('tbody');
+      const trs = Array.from(tbody.querySelectorAll('tr'));
+      trs.sort((a, b) => {
+        const av = (a.children[col] || {}).textContent || '';
+        const bv = (b.children[col] || {}).textContent || '';
+        const an = parseFloat(av), bn = parseFloat(bv);
+        if (!isNaN(an) && !isNaN(bn)) return an - bn;
+        return av.localeCompare(bv);
+      });
+      if (th.dataset.dir === 'asc') { trs.reverse(); th.dataset.dir = 'desc'; } else { th.dataset.dir = 'asc'; }
+      trs.forEach(tr => tbody.appendChild(tr));
+    });
+  });
+}
+
+function _parseCSV(text, sep) {
+  const rows = [];
+  let row = [], field = '', inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; } else { inQuote = false; }
+      } else { field += ch; }
+    } else {
+      if (ch === '"') { inQuote = true; }
+      else if (ch === sep) { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch === '\r') { /* skip */ }
+      else { field += ch; }
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
 }
 
 function renderItemCard(item, isPersistent) {
@@ -4687,6 +4881,14 @@ function renderItemCard(item, isPersistent) {
       <video src="${linkPath}" controls preload="metadata" loading="lazy" style="width:100%;height:100%;object-fit:contain"></video>
       ${videoInfo ? `<div class="video-info-overlay">${videoInfo}</div>` : ''}
     </div>`;
+  } else if (item.mime_type === 'application/pdf') {
+    thumb = `<div class="item-thumb"><iframe src="${linkPath}" style="width:100%;height:100%;border:none" loading="lazy" title="${escapeHtml(item.name)}"></iframe></div>`;
+  } else if (item.mime_type === 'text/markdown' || /\.(md|markdown)$/i.test(item.name)) {
+    thumb = `<div class="item-thumb"><div class="doc-preview" data-doc-type="markdown" data-doc-id="${item.id}" data-doc-url="${linkPath}">Loading…</div></div>`;
+  } else if (item.mime_type === 'application/json' || /\.json$/i.test(item.name)) {
+    thumb = `<div class="item-thumb"><div class="doc-preview" data-doc-type="json" data-doc-id="${item.id}" data-doc-url="${linkPath}">Loading…</div></div>`;
+  } else if (item.mime_type === 'text/csv' || /\.(csv|tsv)$/i.test(item.name)) {
+    thumb = `<div class="item-thumb"><div class="doc-preview" data-doc-type="csv" data-doc-id="${item.id}" data-doc-url="${linkPath}">Loading…</div></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
