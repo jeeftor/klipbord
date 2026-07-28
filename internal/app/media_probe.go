@@ -127,6 +127,42 @@ func probeMediaForItem(id, mimeType string) {
 	}()
 }
 
+// probeExistingMedia scans all items on startup and probes any audio/video
+// files that don't yet have media_info. This handles files uploaded before
+// the ffprobe feature was added.
+func probeExistingMedia() {
+	if !ffprobeAvailable() {
+		return
+	}
+	metaMu.RLock()
+	var toProbe []Item
+	for _, item := range meta.Items {
+		if item.Type != "file" {
+			continue
+		}
+		if item.MediaInfo != nil {
+			continue
+		}
+		if strings.HasPrefix(item.MimeType, "audio/") || strings.HasPrefix(item.MimeType, "video/") {
+			toProbe = append(toProbe, item)
+		}
+	}
+	metaMu.RUnlock()
+
+	if len(toProbe) == 0 {
+		return
+	}
+	log.Printf("Media probe: retroactively probing %d existing media file(s)", len(toProbe))
+	for _, item := range toProbe {
+		path := filepath.Join(dataDir, fileDir, item.ID)
+		info := probeMedia(path)
+		if info != nil {
+			updateItemMediaInfo(item.ID, info)
+		}
+	}
+	log.Printf("Media probe: retroactive scan complete")
+}
+
 // updateItemMediaInfo updates the MediaInfo field on an item and saves.
 func updateItemMediaInfo(id string, info *MediaInfo) {
 	metaMu.Lock()
