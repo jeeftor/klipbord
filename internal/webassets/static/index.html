@@ -2801,9 +2801,13 @@ function _drawAudioWaveform(id) {
   ctx.clearRect(0, 0, w, h);
 
   if (!state.peaks || state.peaks.length === 0) {
-    // Placeholder line while decoding
-    ctx.fillStyle = '#475569';
-    ctx.fillRect(0, h / 2 - 1, w, 2);
+    // Placeholder — if still loading, show status text
+    if (_audioLoadingIds.has(id)) {
+      _setAudioStatus(id, state.queued ? 'Queued…' : 'Loading…');
+    } else {
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(0, h / 2 - 1, w, 2);
+    }
     return;
   }
 
@@ -2843,6 +2847,26 @@ function _computePeaks(audioBuffer, numPeaks = 200) {
 // browser with simultaneous large ArrayBuffer allocations.
 let _audioDecodeQueue = [];
 let _audioDecoding = false;
+const _audioLoadingIds = new Set();
+
+function _setAudioStatus(id, text) {
+  const canvas = document.querySelector(`canvas.audio-waveform[data-audio-id="${id}"]`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.offsetWidth || 200;
+  const h = canvas.height = canvas.offsetHeight || 60;
+  ctx.clearRect(0, 0, w, h);
+  if (!text) return;
+  // Draw placeholder line
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(0, h / 2 - 1, w, 2);
+  // Draw status text
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, h / 2 - 10);
+}
 
 function _enqueueAudioDecode(id, url) {
   let state = _audioState[id];
@@ -2852,6 +2876,8 @@ function _enqueueAudioDecode(id, url) {
   if (state.decoded || state.queued) return;
   state.queued = true;
   _audioDecodeQueue.push({ id, url });
+  // Show queue position
+  _setAudioStatus(id, 'Queued…');
   _processAudioQueue();
 }
 
@@ -2864,6 +2890,7 @@ async function _processAudioQueue() {
     if (!state || state.decoded) continue;
     state.queued = false;
     state.decoded = true;
+    _setAudioStatus(id, 'Decoding…');
     try {
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -2878,6 +2905,7 @@ async function _processAudioQueue() {
       state.sampleRate = audioBuffer.sampleRate;
       state.channels = audioBuffer.numberOfChannels;
       state.bitrate = state.duration > 0 ? Math.round((fileSize * 8) / state.duration / 1000) : 0;
+      _audioLoadingIds.delete(id);
       _drawAudioWaveform(id);
       _updateAudioTime(id);
       _updateAudioInfo(id);
@@ -2885,7 +2913,8 @@ async function _processAudioQueue() {
       console.warn(`[audio] decode failed for ${id}:`, err);
       state.peaks = [];
       state.decoded = false;
-      _drawAudioWaveform(id);
+      _audioLoadingIds.delete(id);
+      _setAudioStatus(id, 'Click play to load');
     }
   }
   _audioDecoding = false;
@@ -3009,8 +3038,13 @@ document.addEventListener('click', (e) => {
 function initAudioWaveforms(items) {
   const audioItems = items.filter(i => i.mime_type && i.mime_type.startsWith('audio/'));
   if (audioItems.length === 0) return;
-  // Defer to next frame so the DOM is fully laid out before we observe
+  // Show initial status on canvases that will need decoding
   requestAnimationFrame(() => {
+    audioItems.forEach(item => {
+      if (_audioLoadingIds.has(item.id)) {
+        _setAudioStatus(item.id, 'Queued…');
+      }
+    });
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -4636,6 +4670,8 @@ function renderItemCard(item, isPersistent) {
       </div>
       <div class="audio-info" data-audio-id="${item.id}">${infoText}</div>
     </div></div>`;
+    // Show loading indicator if no server-side metadata (needs client decode)
+    if (!mi) _audioLoadingIds.add(item.id);
   } else if (item.mime_type && item.mime_type.startsWith('video/')) {
     const mi = item.media_info;
     let videoInfo = '';
