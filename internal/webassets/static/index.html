@@ -115,15 +115,30 @@ body {
 }
 
 /* Drop zone */
+.input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.input-grid-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .dropzone {
   border: 2px dashed var(--border);
   border-radius: var(--radius);
-  padding: 48px 24px;
+  padding: 24px 16px;
   text-align: center;
-  margin-bottom: 24px;
   transition: all 0.2s;
   cursor: pointer;
   background: var(--bg-card);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 .dropzone:hover {
   border-color: var(--accent);
@@ -135,29 +150,27 @@ body {
   transform: scale(1.01);
 }
 .dropzone-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
+  font-size: 36px;
+  margin-bottom: 8px;
   opacity: 0.6;
 }
 .dropzone-text {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 .dropzone-text strong {
   color: var(--accent);
 }
 .dropzone-hint {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 /* Camera */
 .camera-section {
-  text-align: center;
-  margin-bottom: 24px;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   justify-content: center;
 }
 .camera-btn svg { vertical-align: middle; }
@@ -296,10 +309,12 @@ body {
 
 /* Text input */
 .text-input-section {
-  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
 }
 .text-input {
   width: 100%;
+  flex: 1;
   min-height: 120px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -952,6 +967,7 @@ body {
   .header h1 .logo { width: 22px; height: 22px; }
   .version-badge { display: none; }
   .main { padding: 16px; }
+  .input-grid { grid-template-columns: 1fr; }
   .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; }
   .tab { padding: 0 10px; font-size: 13px; }
   .tab-icon { width: 14px; height: 14px; }
@@ -1274,38 +1290,38 @@ body {
 <!-- Tab: Clipboard -->
 <div class="tab-content active" id="tab-clipboard">
   <div class="main">
-    <!-- Drop zone -->
-    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
-      <div class="dropzone-icon">📋</div>
-      <div class="dropzone-text"><strong>Ctrl+V</strong> to paste an image or text, or drag & drop files here</div>
-      <div class="dropzone-hint">You can also click to browse, or paste text below</div>
-      <input type="file" id="fileInput" hidden multiple>
-    </div>
-
-    <!-- Camera button -->
-    <div class="camera-section">
-      <button class="btn btn-secondary camera-btn" onclick="openCamera(event)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        Take Snapshot
-      </button>
-      <button class="btn btn-secondary camera-btn" onclick="document.getElementById('cameraNativeInput').click()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        Camera
-      </button>
-      <input type="file" id="cameraNativeInput" accept="image/*" capture="environment" hidden>
+    <!-- Input grid: dropzone+camera (left) | text input (right) -->
+    <div class="input-grid">
+      <div class="input-grid-left">
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+          <div class="dropzone-icon">📋</div>
+          <div class="dropzone-text"><strong>Ctrl+V</strong> to paste, or drag & drop files</div>
+          <div class="dropzone-hint">Click to browse</div>
+          <input type="file" id="fileInput" hidden multiple>
+        </div>
+        <div class="camera-section">
+          <button class="btn btn-secondary camera-btn" onclick="openCamera(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            Snapshot
+          </button>
+          <button class="btn btn-secondary camera-btn" onclick="document.getElementById('cameraNativeInput').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            Camera
+          </button>
+          <input type="file" id="cameraNativeInput" accept="image/*" capture="environment" hidden>
+        </div>
+      </div>
+      <div class="text-input-section">
+        <textarea class="text-input" id="textInput" placeholder="Paste text or code here... (Ctrl+Enter to submit)"></textarea>
+        <div class="text-input-actions">
+          <input type="text" class="text-name" id="textName" placeholder="filename (optional, e.g. snippet.py)">
+          <button class="btn btn-primary" onclick="submitText()">Paste Text</button>
+        </div>
+      </div>
     </div>
 
     <!-- Upload progress -->
     <div class="upload-list" id="uploadList"></div>
-
-    <!-- Text input -->
-    <div class="text-input-section">
-      <textarea class="text-input" id="textInput" placeholder="Paste text or code here... (Ctrl+Enter to submit)"></textarea>
-      <div class="text-input-actions">
-        <input type="text" class="text-name" id="textName" placeholder="filename (optional, e.g. snippet.py)">
-        <button class="btn btn-primary" onclick="submitText()">Paste Text</button>
-      </div>
-    </div>
 
     <!-- Items -->
     <div class="pull-indicator" id="pullIndicator">Pull to refresh</div>
