@@ -23,7 +23,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, string) {
 	visionEnabled = false // disable vision for API tests unless explicitly enabled
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", redirectToClipHandler)
+	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/api/version", versionHandler)
 	mux.HandleFunc("/api/health", healthHandler)
 	mux.HandleFunc("/api/files", apiFilesHandler)
@@ -58,6 +58,27 @@ func doRequest(t *testing.T, server *httptest.Server, method, path string, body 
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	return resp
+}
+
+// doRequestNoRedirect is like doRequest but does not follow redirects, so the
+// caller can inspect 3xx responses directly.
+func doRequestNoRedirect(t *testing.T, server *httptest.Server, method, path string, body io.Reader) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(method, server.URL+path, body)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
@@ -137,7 +158,8 @@ func TestDirectLinkServesTextAndFiles(t *testing.T) {
 	resp := doRequest(t, server, "POST", "/api/text", textBody)
 	textID := parseJSON(t, resp)["id"].(string)
 
-	resp = doRequest(t, server, "GET", "/link/"+textID, nil)
+	// Use ?direct=1 to skip the filename redirect and serve inline
+	resp = doRequest(t, server, "GET", "/link/"+textID+"?direct=1", nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("text link status = %d", resp.StatusCode)
 	}
@@ -160,7 +182,7 @@ func TestDirectLinkServesTextAndFiles(t *testing.T) {
 	}
 	addItem(Item{ID: fileID, Name: "linked.bin", Type: "file", MimeType: "application/octet-stream", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
 
-	resp = doRequest(t, server, "GET", "/link/"+fileID, nil)
+	resp = doRequest(t, server, "GET", "/link/"+fileID+"/linked.bin", nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("file link status = %d", resp.StatusCode)
 	}
@@ -528,6 +550,350 @@ func TestRootHandlerNotFound(t *testing.T) {
 		t.Errorf("nonexistent path status = %d, expected 404", resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+func TestShortLinkServesItem(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	// Use a 12-char lowercase alphanumeric ID to match the ID format.
+	fileID := "shortlink001"
+	fileContent := []byte("short link content")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "generated_64x64_30fps.gif", Type: "file", MimeType: "image/gif", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	// /{id}/{filename} should serve the item directly
+	resp := doRequest(t, server, "GET", "/"+fileID+"/generated_64x64_30fps.gif", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("short link with filename status = %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if string(body) != string(fileContent) {
+		t.Errorf("short link body = %q, expected %q", body, fileContent)
+	}
+	if got := resp.Header.Get("Content-Disposition"); !strings.Contains(got, "generated_64x64_30fps.gif") {
+		t.Errorf("Content-Disposition = %q, expected filename", got)
+	}
+
+	// /{id}?direct=1 should serve inline (skip redirect)
+	resp = doRequest(t, server, "GET", "/"+fileID+"?direct=1", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("short link direct status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// /{id}/{filename}?download=1 should force attachment
+	resp = doRequest(t, server, "GET", "/"+fileID+"/generated_64x64_30fps.gif?download=1", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("short link download status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(got, "attachment") {
+		t.Errorf("Content-Disposition = %q, expected attachment", got)
+	}
+}
+
+func TestShortLinkRedirectsToFilename(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	fileID := "redirtest001"
+	fileContent := []byte("redirect test")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "report.docx", Type: "file", MimeType: "application/octet-stream", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	// Bare /{id} should 302 redirect to /{id}/{filename}
+	resp := doRequestNoRedirect(t, server, "GET", "/"+fileID, nil)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("bare short link status = %d, expected 302", resp.StatusCode)
+	}
+	location := resp.Header.Get("Location")
+	if location != "/"+fileID+"/report.docx" {
+		t.Errorf("redirect Location = %q, expected /%s/report.docx", location, fileID)
+	}
+	resp.Body.Close()
+
+	// /{id}?download=1 should redirect to /{id}/{filename}?download=1
+	resp = doRequestNoRedirect(t, server, "GET", "/"+fileID+"?download=1", nil)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("bare short link with download status = %d, expected 302", resp.StatusCode)
+	}
+	location = resp.Header.Get("Location")
+	if location != "/"+fileID+"/report.docx?download=1" {
+		t.Errorf("redirect Location = %q, expected /%s/report.docx?download=1", location, fileID)
+	}
+	resp.Body.Close()
+
+	// /{id}?direct=1 should NOT redirect — should serve directly
+	resp = doRequest(t, server, "GET", "/"+fileID+"?direct=1", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("direct bypass status = %d, expected 200", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// /link/{id} should also redirect (backwards compat)
+	resp = doRequestNoRedirect(t, server, "GET", "/link/"+fileID, nil)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("legacy bare link status = %d, expected 302", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestShortLinkNotFoundForInvalidID(t *testing.T) {
+	server, _ := setupTestServer(t)
+	// 12-char ID that doesn't exist in the store
+	resp := doRequest(t, server, "GET", "/aaaaaaaaaaaa", nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("nonexistent short link status = %d, expected 404", resp.StatusCode)
+	}
+	resp.Body.Close()
+	// Non-ID-shaped paths should still 404
+	resp = doRequest(t, server, "GET", "/random-path", nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("random path status = %d, expected 404", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestHeadRequestRevealsFilename(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	fileID := "headreq00001"
+	fileContent := []byte("head request test")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "Quarterly_Report.docx", Type: "file", MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	// HEAD request on named URL should return headers (including filename) without body
+	resp := doRequest(t, server, "HEAD", "/"+fileID+"/Quarterly_Report.docx", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("HEAD status = %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Disposition"); !strings.Contains(got, "Quarterly_Report.docx") {
+		t.Errorf("HEAD Content-Disposition = %q, expected filename", got)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "wordprocessingml") {
+		t.Errorf("HEAD Content-Type = %q, expected docx mime", got)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if len(body) != 0 {
+		t.Errorf("HEAD body = %d bytes, expected empty", len(body))
+	}
+
+	// HEAD via /link/ prefix should also work
+	resp = doRequest(t, server, "HEAD", "/link/"+fileID+"/Quarterly_Report.docx", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("HEAD via /link/ status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestDirectLinkMethodNotAllowed(t *testing.T) {
+	server, dir := setupTestServer(t)
+	fileID := "methodtest01"
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	addItem(Item{ID: fileID, Name: "test.bin", Type: "file", MimeType: "application/octet-stream", Size: 1, Created: time.Now(), TTL: "never"})
+
+	// POST to /{id}/{filename} should be 405
+	resp := doRequest(t, server, "POST", "/"+fileID+"/test.bin", nil)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("POST short link status = %d, expected 405", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// POST to /link/{id}/{filename} should be 405
+	resp = doRequest(t, server, "POST", "/link/"+fileID+"/test.bin", nil)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("POST /link/ status = %d, expected 405", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestDirectLinkTextHeadRequest(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	body := strings.NewReader(`{"content":"head text test","name":"head.txt"}`)
+	resp := doRequest(t, server, "POST", "/api/text", body)
+	textID := parseJSON(t, resp)["id"].(string)
+
+	// HEAD on a text item via named URL should return headers without body
+	resp = doRequest(t, server, "HEAD", "/"+textID+"/head.txt", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("HEAD text status = %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Disposition"); !strings.Contains(got, "head.txt") {
+		t.Errorf("HEAD text Content-Disposition = %q, expected filename", got)
+	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if len(bodyBytes) != 0 {
+		t.Errorf("HEAD text body = %d bytes, expected empty", len(bodyBytes))
+	}
+}
+
+func TestDirectLinkTextNotFoundOnDisk(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a text item but don't write the file to disk
+	addItem(Item{ID: "ghosttext001", Name: "ghost.txt", Type: "text", Size: 5, Created: time.Now(), TTL: "never"})
+
+	resp := doRequest(t, server, "GET", "/ghosttext001/ghost.txt", nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("missing text file status = %d, expected 404", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestPatchMimeType(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	fileID := "filemime01"
+	fileContent := []byte("mime test")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "photo.gif", Type: "file", MimeType: "application/octet-stream", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	// Patch the MIME type
+	patchBody := strings.NewReader(`{"mime_type":"image/gif"}`)
+	resp := doRequest(t, server, "PATCH", "/api/files/"+fileID, patchBody)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch mime status = %d", resp.StatusCode)
+	}
+	result := parseJSON(t, resp)
+	if got := result["mime_type"].(string); got != "image/gif" {
+		t.Errorf("patched mime_type = %q, expected image/gif", got)
+	}
+
+	// Verify it persisted
+	item, ok := findItem(fileID)
+	if !ok {
+		t.Fatal("item not found after patch")
+	}
+	if item.MimeType != "image/gif" {
+		t.Errorf("stored mime_type = %q, expected image/gif", item.MimeType)
+	}
+
+	// Patching with no fields should error
+	resp = doRequest(t, server, "PATCH", "/api/files/"+fileID, strings.NewReader(`{}`))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("empty patch status = %d, expected 400", resp.StatusCode)
+	}
+}
+
+func TestDirectLinkWithFilenameSegment(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	fileID := "filefn01"
+	fileContent := []byte("named file content")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "generated_64x64_30fps.gif", Type: "file", MimeType: "image/gif", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	// /link/{id}/{filename} should serve the same content as /link/{id}
+	resp := doRequest(t, server, "GET", "/link/"+fileID+"/generated_64x64_30fps.gif", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("named link status = %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if string(body) != string(fileContent) {
+		t.Errorf("named link body = %q, expected %q", body, fileContent)
+	}
+	if got := resp.Header.Get("Content-Disposition"); !strings.Contains(got, "generated_64x64_30fps.gif") {
+		t.Errorf("Content-Disposition = %q, expected filename", got)
+	}
+}
+
+func TestDirectLinkDownloadQuery(t *testing.T) {
+	server, dir := setupTestServer(t)
+
+	fileID := "filedl01"
+	fileContent := []byte("download me")
+	if err := os.WriteFile(filepath.Join(dir, fileDir, fileID), fileContent, 0644); err != nil {
+		t.Fatalf("write test file: %v", err)
+	}
+	addItem(Item{ID: fileID, Name: "report.pdf", Type: "file", MimeType: "application/pdf", Size: int64(len(fileContent)), Created: time.Now(), TTL: "never"})
+
+	resp := doRequest(t, server, "GET", "/link/"+fileID+"/report.pdf?download=1", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("download link status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(got, "attachment") {
+		t.Errorf("Content-Disposition = %q, expected attachment", got)
+	}
+}
+
+func TestLinkURLIncludesFilename(t *testing.T) {
+	baseURL = "https://klipbord.example.com"
+	if got, want := linkURL("abc123"), "https://klipbord.example.com/abc123"; got != want {
+		t.Errorf("linkURL without name = %q, expected %q", got, want)
+	}
+	if got, want := linkURL("abc123", "generated_64x64_30fps.gif"), "https://klipbord.example.com/abc123/generated_64x64_30fps.gif"; got != want {
+		t.Errorf("linkURL with name = %q, expected %q", got, want)
+	}
+	// Path separators in the name should be stripped.
+	if got, want := linkURL("abc123", "sub/dir/file.txt"), "https://klipbord.example.com/abc123/file.txt"; got != want {
+		t.Errorf("linkURL with path name = %q, expected %q", got, want)
+	}
+}
+
+func TestUploadDetectsMimeFromExtension(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Upload a .gif with a generic octet-stream content type (as curl does
+	// when no ;type= is specified). The server should detect image/gif from
+	// the filename extension so the item is treated as an image.
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	h := make(map[string][]string)
+	h["Content-Disposition"] = []string{`form-data; name="file"; filename="generated_64x64_30fps.gif"`}
+	h["Content-Type"] = []string{"application/octet-stream"}
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("create form part: %v", err)
+	}
+	part.Write([]byte("GIF89a fake gif data"))
+	writer.Close()
+
+	req, _ := http.NewRequest("POST", server.URL+"/api/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("upload failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload status = %d", resp.StatusCode)
+	}
+	result := parseJSON(t, resp)
+	id := result["id"].(string)
+
+	item, ok := findItem(id)
+	if !ok {
+		t.Fatal("uploaded item not found")
+	}
+	if item.MimeType != "image/gif" {
+		t.Errorf("mime_type = %q, expected image/gif", item.MimeType)
+	}
+	// The returned URL should include the filename.
+	if got := result["url"].(string); !strings.Contains(got, "/generated_64x64_30fps.gif") {
+		t.Errorf("url = %q, expected to contain filename", got)
+	}
 }
 
 // --- Test helpers for images ---

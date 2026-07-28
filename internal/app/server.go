@@ -83,7 +83,7 @@ func Run(appVersion string, staticAssets Assets) {
 // NewHandler returns the HTTP handler for Klipbord's web UI and API.
 func NewHandler() *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", redirectToClipHandler)
+	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/clip", webUIHandler)
 	mux.HandleFunc("/persist", webUIHandler)
 	mux.HandleFunc("/config", webUIHandler)

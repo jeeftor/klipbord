@@ -347,7 +347,7 @@ func TestLinkURL(t *testing.T) {
 	baseURL = "https://klipbord.example.com"
 	t.Cleanup(func() { baseURL = originalBaseURL })
 
-	if got, want := linkURL("abc123"), "https://klipbord.example.com/link/abc123"; got != want {
+	if got, want := linkURL("abc123"), "https://klipbord.example.com/abc123"; got != want {
 		t.Errorf("linkURL() = %q, expected %q", got, want)
 	}
 }

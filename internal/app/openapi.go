@@ -140,11 +140,14 @@ func buildOpenAPISpec() map[string]interface{} {
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Raw text content", "content": map[string]interface{}{"text/plain": map[string]interface{}{"schema": map[string]interface{}{"type": "string"}}}}},
 				},
 			},
-			"/link/{id}": map[string]interface{}{
+			"/{id}": map[string]interface{}{
 				"get": map[string]interface{}{
-					"summary": "Open a stored file, image, or text snippet",
+					"summary":     "Open a stored file, image, or text snippet (short link)",
+					"description": "Serves the item inline with its stored MIME type. The short form /{id} is the canonical shareable link. Append an optional filename segment (/{id}/{filename}) so download tools save with a sensible name. Add ?download=1 to force an attachment (download) disposition. The legacy /link/{id} form also works.",
 					"parameters": []map[string]interface{}{
-						{"name": "id", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}},
+						{"name": "id", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string"}, "description": "12-character lowercase alphanumeric item ID"},
+						{"name": "filename", "in": "path", "required": false, "schema": map[string]interface{}{"type": "string"}, "description": "Optional filename for cosmetic/save-as purposes"},
+						{"name": "download", "in": "query", "required": false, "schema": map[string]interface{}{"type": "boolean"}, "description": "When present, forces Content-Disposition: attachment"},
 					},
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Stored item content"}},
 				},

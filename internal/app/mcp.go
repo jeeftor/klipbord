@@ -654,7 +654,7 @@ func formatItemList(items []Item) (interface{}, *MCPError) {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Found %d items:", len(items)))
 	for _, item := range items {
-		url := linkURL(item.ID)
+		url := linkURL(item.ID, item.Name)
 		expiry := "never"
 		if !item.Expires.IsZero() {
 			expiry = item.Expires.Format("2006-01-02 15:04:05")
@@ -695,7 +695,7 @@ func mcpGetFile(id string) (interface{}, *MCPError) {
 		Content: []MCPContent{{
 			Type: "text",
 			Text: fmt.Sprintf("File: %s\nMIME: %s\nSize: %d bytes\nURL: %s\nBase64 content:\n%s",
-				item.Name, item.MimeType, item.Size, linkURL(id), encoded),
+				item.Name, item.MimeType, item.Size, linkURL(id, item.Name), encoded),
 		}},
 	}, nil
 }
@@ -705,7 +705,7 @@ func mcpGetFileURL(id string) (interface{}, *MCPError) {
 	if !ok {
 		return nil, &MCPError{Code: -32602, Message: "item not found"}
 	}
-	url := linkURL(item.ID)
+	url := linkURL(item.ID, item.Name)
 	return MCPToolResult{
 		Content: []MCPContent{{Type: "text", Text: url}},
 	}, nil
@@ -734,8 +734,8 @@ func mcpUploadFile(filename, content, mimeType, ttlStr string, persistent bool) 
 		return nil, &MCPError{Code: -32603, Message: "failed to write file"}
 	}
 
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
+	if mimeType == "" || isGenericMimeType(mimeType) {
+		mimeType = detectMimeType(mimeType, filename, fpath)
 	}
 
 	var expires time.Time
@@ -759,7 +759,7 @@ func mcpUploadFile(filename, content, mimeType, ttlStr string, persistent bool) 
 	}
 	addItem(item)
 
-	url := linkURL(id)
+	url := linkURL(id, filename)
 	return MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",
@@ -806,7 +806,7 @@ func mcpCreateText(content, name, ttlStr string, persistent bool) (interface{}, 
 	}
 	addItem(item)
 
-	url := linkURL(id)
+	url := linkURL(id, name)
 	return MCPToolResult{
 		Content: []MCPContent{{
 			Type: "text",

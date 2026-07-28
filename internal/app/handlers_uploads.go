@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,11 +59,11 @@ func apiUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mimeType := header.Header.Get("Content-Type")
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
+	if mimeType == "" || isGenericMimeType(mimeType) {
+		mimeType = detectMimeType(mimeType, header.Filename, path)
 	}
 	addUploadedFile(id, header.Filename, mimeType, written, ttl)
-	writeJSON(w, map[string]interface{}{"id": id, "name": header.Filename, "url": linkURL(id)})
+	writeJSON(w, map[string]interface{}{"id": id, "name": header.Filename, "url": linkURL(id, header.Filename)})
 }
 
 func addUploadedFile(id, name, mimeType string, size int64, ttl time.Duration) {
@@ -295,15 +296,15 @@ func apiUploadCompleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = os.RemoveAll(directory)
 	mimeType := metadata.MimeType
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
+	if mimeType == "" || isGenericMimeType(mimeType) {
+		mimeType = detectMimeType(mimeType, metadata.Filename, path)
 	}
 	ttl, err := parseTTL(metadata.TTL)
 	if err != nil {
 		ttl = defaultTTL
 	}
 	addUploadedFile(id, metadata.Filename, mimeType, written, ttl)
-	writeJSON(w, map[string]interface{}{"id": id, "name": metadata.Filename, "url": linkURL(id)})
+	writeJSON(w, map[string]interface{}{"id": id, "name": metadata.Filename, "url": linkURL(id, metadata.Filename)})
 }
 
 func genChunkID() (string, error) {
@@ -320,6 +321,39 @@ func genChunkID() (string, error) {
 
 func validChunkID(id string) bool {
 	return len(id) == idLen && !strings.ContainsAny(id, `/\\`)
+}
+
+// isGenericMimeType reports whether the client-supplied MIME type is a
+// content-free fallback that should be replaced with a detected type.
+func isGenericMimeType(mimeType string) bool {
+	return mimeType == "" ||
+		mimeType == "application/octet-stream" ||
+		mimeType == "application/x-www-form-urlencoded"
+}
+
+// detectMimeType tries to determine a specific MIME type for an uploaded file
+// when the client did not provide one. It first consults the filename
+// extension (which covers cases like .gif that content sniffing reports as
+// image/gif) and falls back to sniffing the first 512 bytes of the stored
+// file. The provided fallback is returned if no better type can be determined.
+func detectMimeType(fallback, filename, path string) string {
+	if ext := filepath.Ext(filename); ext != "" {
+		if guessed := mime.TypeByExtension(ext); guessed != "" {
+			return guessed
+		}
+	}
+	if f, err := os.Open(path); err == nil {
+		head := make([]byte, 512)
+		n, _ := io.ReadFull(f, head)
+		_ = f.Close()
+		if sniffed := http.DetectContentType(head[:n]); !isGenericMimeType(sniffed) {
+			return sniffed
+		}
+	}
+	if fallback == "" {
+		return "application/octet-stream"
+	}
+	return fallback
 }
 
 func chunkSweeper() {
