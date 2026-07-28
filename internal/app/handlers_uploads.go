@@ -25,19 +25,25 @@ const (
 // Linux vs "audio/x-wav" on macOS). AddExtensionType overrides the OS registry.
 func init() {
 	for ext, ct := range map[string]string{
-		".mp3":  "audio/mpeg",
-		".wav":  "audio/wav",
-		".ogg":  "audio/ogg",
-		".oga":  "audio/ogg",
-		".flac": "audio/flac",
-		".m4a":  "audio/mp4",
-		".aac":  "audio/aac",
-		".opus": "audio/opus",
-		".mp4":  "video/mp4",
-		".webm": "video/webm",
-		".mkv":  "video/x-matroska",
-		".avi":  "video/x-msvideo",
-		".mov":  "video/quicktime",
+		".mp3":      "audio/mpeg",
+		".wav":      "audio/wav",
+		".ogg":      "audio/ogg",
+		".oga":      "audio/ogg",
+		".flac":     "audio/flac",
+		".m4a":      "audio/mp4",
+		".aac":      "audio/aac",
+		".opus":     "audio/opus",
+		".mp4":      "video/mp4",
+		".webm":     "video/webm",
+		".mkv":      "video/x-matroska",
+		".avi":      "video/x-msvideo",
+		".mov":      "video/quicktime",
+		".pdf":      "application/pdf",
+		".md":       "text/markdown",
+		".markdown": "text/markdown",
+		".json":     "application/json",
+		".csv":      "text/csv",
+		".tsv":      "text/tab-separated-values",
 	} {
 		_ = mime.AddExtensionType(ext, ct)
 	}
