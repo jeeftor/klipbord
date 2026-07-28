@@ -1994,6 +1994,7 @@ body {
         <tr><td style="padding:3px 0">Pin</td><td style="color:var(--text-muted)">Keep item forever (exempt from TTL)</td></tr>
         <tr><td style="padding:3px 0">Scan</td><td style="color:var(--text-muted)">Re-run vision analysis (images only)</td></tr>
         <tr><td style="padding:3px 0">Waveform</td><td style="color:var(--text-muted)">Click to seek, play/pause button (audio files)</td></tr>
+        <tr><td style="padding:3px 0">Video</td><td style="color:var(--text-muted)">Inline player with controls (MP4, WebM, MOV)</td></tr>
       </table>
       <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">MIME Detection</h4>
       <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">When a file is uploaded with a generic type (e.g. <code style="font-family:var(--mono);font-size:11px">application/octet-stream</code> from curl), Klipbord detects the real type from the filename extension first, then by sniffing the file content. Use the tag icon on any file card to override.</p>
@@ -4565,6 +4566,8 @@ function renderItemCard(item, isPersistent) {
       </div>
       <div class="audio-info" data-audio-id="${item.id}">${formatSize(item.size || 0)}</div>
     </div></div>`;
+  } else if (item.mime_type && item.mime_type.startsWith('video/')) {
+    thumb = `<div class="item-thumb"><video src="${linkPath}" controls preload="metadata" loading="lazy" style="width:100%;height:100%;object-fit:contain"></video></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
@@ -4600,6 +4603,16 @@ function renderItemCard(item, isPersistent) {
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
+    actions = `
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  } else if (item.mime_type && item.mime_type.startsWith('video/')) {
     actions = `
       <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
       <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
