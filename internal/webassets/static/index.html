@@ -629,6 +629,20 @@ body {
   width: 100%;
   line-height: 1.3;
 }
+.item-thumb .video-info-overlay {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  padding: 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  text-align: center;
+}
 .item-thumb .code-preview {
   width: 100%;
   height: 100%;
@@ -2833,7 +2847,11 @@ async function _decodeAudio(id, url) {
     const resp = await fetch(url);
     const buf = await resp.arrayBuffer();
     const fileSize = buf.byteLength;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Use OfflineAudioContext for decoding — it doesn't require a user gesture
+    // and works even when a regular AudioContext would be suspended by the
+    // browser's autoplay policy.
+    const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new Ctx(1, 1, 44100);
     const audioBuffer = await ctx.decodeAudioData(buf);
     state.peaks = _computePeaks(audioBuffer);
     state.duration = audioBuffer.duration;
@@ -2866,6 +2884,8 @@ function _updateAudioInfo(id) {
   if (!state) return;
   const infoEl = document.querySelector(`.audio-info[data-audio-id="${id}"]`);
   if (!infoEl) return;
+  // Don't overwrite if server-side ffprobe info is already shown (contains "·")
+  if (infoEl.textContent.includes('·')) return;
   const parts = [];
   parts.push(_formatTime(state.duration));
   if (state.channels) parts.push(state.channels === 1 ? 'mono' : `${state.channels}ch`);
@@ -4413,6 +4433,18 @@ function formatDuration(ms) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+// Format media duration from seconds (ffprobe format) as M:SS
+function formatMediaDuration(sec) {
+  if (!sec || sec <= 0) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    return `${h}:${(m % 60).toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 function formatExpiry(expires) {
   if (!expires || expires === '0001-01-01T00:00:00Z') return 'never';
   const d = new Date(expires);
@@ -4558,16 +4590,39 @@ function renderItemCard(item, isPersistent) {
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
     thumb = `<div class="item-thumb"><img src="${linkPath}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('${linkPath}')"></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
+    const mi = item.media_info;
+    let infoText = formatSize(item.size || 0);
+    if (mi) {
+      const parts = [formatMediaDuration(mi.duration)];
+      if (mi.channels) parts.push(mi.channels === 1 ? 'mono' : `${mi.channels}ch`);
+      if (mi.sample_rate) parts.push(`${(mi.sample_rate / 1000).toFixed(1)}kHz`);
+      if (mi.bit_rate) parts.push(`${Math.round(mi.bit_rate / 1000)}kbps`);
+      if (mi.codec) parts.push(mi.codec);
+      infoText = parts.join(' · ');
+    }
     thumb = `<div class="item-thumb"><div class="audio-player" data-audio-id="${item.id}" data-audio-url="${linkPath}" data-audio-size="${item.size || 0}">
       <canvas class="audio-waveform" data-audio-id="${item.id}"></canvas>
       <div class="audio-controls">
         <button class="audio-play-btn" data-audio-id="${item.id}" onclick="toggleAudioPlay('${item.id}', '${linkPath}')">${ICONS.play}</button>
-        <span class="audio-time" data-audio-id="${item.id}">--:--</span>
+        <span class="audio-time" data-audio-id="${item.id}">${mi ? formatMediaDuration(mi.duration) : '--:--'}</span>
       </div>
-      <div class="audio-info" data-audio-id="${item.id}">${formatSize(item.size || 0)}</div>
+      <div class="audio-info" data-audio-id="${item.id}">${infoText}</div>
     </div></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('video/')) {
-    thumb = `<div class="item-thumb"><video src="${linkPath}" controls preload="metadata" loading="lazy" style="width:100%;height:100%;object-fit:contain"></video></div>`;
+    const mi = item.media_info;
+    let videoInfo = '';
+    if (mi) {
+      const parts = [];
+      if (mi.width && mi.height) parts.push(`${mi.width}x${mi.height}`);
+      if (mi.duration) parts.push(formatMediaDuration(mi.duration));
+      if (mi.codec) parts.push(mi.codec);
+      if (mi.bit_rate) parts.push(`${Math.round(mi.bit_rate / 1000)}kbps`);
+      videoInfo = parts.join(' · ');
+    }
+    thumb = `<div class="item-thumb" style="position:relative">
+      <video src="${linkPath}" controls preload="metadata" loading="lazy" style="width:100%;height:100%;object-fit:contain"></video>
+      ${videoInfo ? `<div class="video-info-overlay">${videoInfo}</div>` : ''}
+    </div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
