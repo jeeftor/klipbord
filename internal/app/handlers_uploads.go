@@ -19,6 +19,26 @@ const (
 	chunkStaleTime = time.Hour
 )
 
+// init registers canonical MIME types for common audio extensions so that
+// detectMimeType returns consistent values across platforms. Linux and macOS
+// have different system MIME databases (e.g. .wav → "audio/vnd.wave" on Linux
+// vs "audio/x-wav" on macOS). AddExtensionType overrides the OS registry.
+func init() {
+	for ext, ct := range map[string]string{
+		".mp3":  "audio/mpeg",
+		".wav":  "audio/wav",
+		".ogg":  "audio/ogg",
+		".oga":  "audio/ogg",
+		".flac": "audio/flac",
+		".m4a":  "audio/mp4",
+		".aac":  "audio/aac",
+		".webm": "audio/webm",
+		".opus": "audio/opus",
+	} {
+		_ = mime.AddExtensionType(ext, ct)
+	}
+}
+
 func apiUploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
