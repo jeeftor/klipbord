@@ -630,6 +630,15 @@ body {
   color: var(--text-muted);
   white-space: nowrap;
 }
+.item-thumb .audio-player .audio-info {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  text-align: center;
+  width: 100%;
+  line-height: 1.3;
+}
 .item-thumb .code-preview {
   width: 100%;
   height: 100%;
@@ -2828,18 +2837,23 @@ function _computePeaks(audioBuffer, numPeaks = 200) {
 async function _decodeAudio(id, url) {
   const state = _audioState[id];
   if (state.decoded) return;
-  state.decoded = true; // mark early to prevent duplicate fetches
+  state.decoded = true;
   try {
     const resp = await fetch(url);
     const buf = await resp.arrayBuffer();
+    const fileSize = buf.byteLength;
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const audioBuffer = await ctx.decodeAudioData(buf);
     state.peaks = _computePeaks(audioBuffer);
     state.duration = audioBuffer.duration;
+    state.sampleRate = audioBuffer.sampleRate;
+    state.channels = audioBuffer.numberOfChannels;
+    // Bitrate = file size (bits) / duration (seconds)
+    state.bitrate = state.duration > 0 ? Math.round((fileSize * 8) / state.duration / 1000) : 0;
     _drawAudioWaveform(id);
     _updateAudioTime(id);
+    _updateAudioInfo(id);
   } catch (err) {
-    // Decoding failed — show flat line, leave time as --:--
     state.peaks = [];
     state.decoded = false;
     _drawAudioWaveform(id);
@@ -2854,6 +2868,19 @@ function _updateAudioTime(id) {
     const cur = state.audio ? state.audio.currentTime : 0;
     timeEl.textContent = `${_formatTime(cur)} / ${_formatTime(state.duration)}`;
   }
+}
+
+function _updateAudioInfo(id) {
+  const state = _audioState[id];
+  if (!state) return;
+  const infoEl = document.querySelector(`.audio-info[data-audio-id="${id}"]`);
+  if (!infoEl) return;
+  const parts = [];
+  parts.push(_formatTime(state.duration));
+  if (state.channels) parts.push(state.channels === 1 ? 'mono' : `${state.channels}ch`);
+  if (state.sampleRate) parts.push(`${(state.sampleRate / 1000).toFixed(1)}kHz`);
+  if (state.bitrate) parts.push(`${state.bitrate}kbps`);
+  infoEl.textContent = parts.join(' · ');
 }
 
 function _updateAudioProgress(id) {
@@ -4540,12 +4567,13 @@ function renderItemCard(item, isPersistent) {
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
     thumb = `<div class="item-thumb"><img src="${linkPath}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('${linkPath}')"></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
-    thumb = `<div class="item-thumb"><div class="audio-player" data-audio-id="${item.id}" data-audio-url="${linkPath}">
+    thumb = `<div class="item-thumb"><div class="audio-player" data-audio-id="${item.id}" data-audio-url="${linkPath}" data-audio-size="${item.size || 0}">
       <canvas class="audio-waveform" data-audio-id="${item.id}"></canvas>
       <div class="audio-controls">
         <button class="audio-play-btn" data-audio-id="${item.id}" onclick="toggleAudioPlay('${item.id}', '${linkPath}')">${ICONS.play}</button>
-        <span class="audio-time" data-audio-id="${item.id}">--:-- / --:--</span>
+        <span class="audio-time" data-audio-id="${item.id}">--:--</span>
       </div>
+      <div class="audio-info" data-audio-id="${item.id}">${formatSize(item.size || 0)}</div>
     </div></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
