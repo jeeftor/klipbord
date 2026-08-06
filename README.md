@@ -44,13 +44,58 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 
 ```bash
 docker run -d \
-  -p 8080:8080 \
+  -p 127.0.0.1:8080:8080 \
   -v ./data:/data \
   -e BASE_URL=https://klipbord.example.com \
   ghcr.io/jeeftor/klipbord:latest
 ```
 
 Then open `http://localhost:8080` — drop a file, paste an image, share a snippet.
+
+When you put Klipbord behind Cloudflare Access, an Authentik proxy, or another
+identity-aware reverse proxy, keep the container on loopback or a private Docker
+network. Publishing the container port directly bypasses that access control.
+
+---
+
+## `kb` Command-Line Client
+
+`kb` is the terminal companion for Klipbord. It reads standard input as a text
+snippet and uploads file arguments directly:
+
+```bash
+cat a.txt | kb
+kb screenshot.png report.pdf
+kb list
+kb pin ITEM_ID
+kb get ITEM_ID
+kb rm ITEM_ID
+```
+
+Uploads print their share URL to standard output, so they compose cleanly with
+shell scripts. Use `--json` when a script needs item metadata.
+
+Download the matching archive from the GitHub release assets, then run
+`kb login`. Profile settings are stored in your normal config directory while
+tokens and header values stay in your operating system keychain.
+
+```bash
+# Cloudflare Access service token (recommended for a Cloudflare-protected URL)
+export CF_ACCESS_CLIENT_ID='...'
+export CF_ACCESS_CLIENT_SECRET='...'
+kb login --url https://klipbord.example.com --method cloudflare
+
+# A direct OIDC-protected deployment with device authorization enabled
+kb login --url https://klipbord.example.com --method oidc \
+  --issuer https://auth.example.com/application/o/klipbord/ \
+  --client-id kb-cli
+```
+
+Other supported methods are `bearer`, `headers`, and `none` for loopback-only
+development. `headers` accepts repeated header names and securely prompts for
+their values; `oidc` uses OpenID Connect discovery and refresh tokens.
+Use `kb profile list` and `kb profile use NAME` when you have more than one
+Klipbord connection.
 
 ---
 
@@ -321,6 +366,12 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 ---
 
 ## Changelog
+
+### v2.12.0
+
+- **`kb` command-line client**: Upload files or piped text, manage items, and authenticate through Cloudflare Access service tokens, bearer tokens, custom headers, or OIDC device login. Release assets now include macOS, Linux, and Windows `kb` binaries.
+- **Container-backed visual demo**: GitHub Actions runs the Docker image, seeds mixed media, and uploads screenshots plus a short browser-recorded WebM demo as artifacts.
+- **Browse files control**: The clipboard input now exposes a dedicated multi-file upload button.
 
 ### v2.9.0
 
