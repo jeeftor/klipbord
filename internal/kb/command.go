@@ -21,6 +21,8 @@ type commandState struct {
 	version    string
 }
 
+var stdinIsTerminal = terminalInput
+
 // NewRootCommand creates the kb command-line client.
 func NewRootCommand(version string) *cobra.Command {
 	state := commandState{version: version}
@@ -31,6 +33,9 @@ func NewRootCommand(version string) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(command *cobra.Command, paths []string) error {
+			if len(paths) == 0 && stdinIsTerminal() {
+				return command.Help()
+			}
 			return state.upload(command.Context(), command.OutOrStdout(), command.ErrOrStderr(), paths, command.Flags())
 		},
 	}
@@ -70,7 +75,7 @@ func (state commandState) upload(ctx context.Context, stdout, stderr io.Writer, 
 	persistent, _ := flags.GetBool("persistent")
 	jsonOutput, _ := flags.GetBool("json")
 	if len(paths) == 0 {
-		if terminalInput() {
+		if stdinIsTerminal() {
 			return errors.New("provide a file path or pipe text to kb")
 		}
 		content, err := io.ReadAll(os.Stdin)
