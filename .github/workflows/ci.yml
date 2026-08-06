@@ -104,7 +104,7 @@ jobs:
       packages: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
     with:
-      image: ${{ env.IMAGE_NAME }}
+      image: ghcr.io/jeeftor/klipbord
       digest: ${{ needs.build.outputs.digest }}
       registry-username: ${{ github.actor }}
     secrets:
