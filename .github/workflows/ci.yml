@@ -183,16 +183,32 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" --generate-notes --target master || true
           gh release upload "${GITHUB_REF_NAME}" dist/kb_* dist/install.sh --clobber
 
-  provenance-kb:
+  # Guard job for provenance-kb: GitHub Actions can't put an if: condition
+  # directly on a reusable workflow (uses:) job that evaluates based on event
+  # context — it fails at startup with "workflow file issue". This guard
+  # evaluates the condition and outputs a boolean that the reusable workflow
+  # depends on.
+  provenance-kb-guard:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: release-kb
+    runs-on: ubuntu-latest
+    outputs:
+      is-tag: ${{ steps.check.outputs.is-tag }}
+      hashes: ${{ needs.release-kb.outputs.hashes }}
+    steps:
+      - id: check
+        run: echo "is-tag=true" >> $GITHUB_OUTPUT
+
+  provenance-kb:
+    needs: provenance-kb-guard
+    if: needs.provenance-kb-guard.outputs.is-tag == 'true'
     permissions:
       actions: read
       id-token: write
       contents: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_binary_slsa3.yml@v2.1.0
     with:
-      base64-subjects: "${{ needs.release-kb.outputs.hashes }}"
+      base64-subjects: "${{ needs.provenance-kb-guard.outputs.hashes }}"
       upload-assets: true
 
   sign-kb:
