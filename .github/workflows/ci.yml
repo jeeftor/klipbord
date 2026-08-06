@@ -2,7 +2,7 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     tags: ['v*']
   release:
     types: [published]
@@ -95,43 +95,67 @@ jobs:
           DIGEST=$(docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}" --format '{{json .Manifest.Digest}}' | tr -d '"')
           echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
-  attest:
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ env.IMAGE_NAME }}
+      digest: ${{ needs.build.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  sign:
     needs: [build]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       packages: write
-      contents: read
-      attestations: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Login to GHCR
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get image digest
-        id: digest
-        run: |
-          DIGEST=$(docker buildx imagetools inspect "${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}" --format '{{json .Manifest.Digest}}' | tr -d '"')
-          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+      - name: Sign Docker image
+        run: |
+          cosign sign --yes \
+            --oidc-issuer=https://token.actions.githubusercontent.com \
+            ${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
+
+  sbom-attest:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+      attestations: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          subject-name: ${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.digest.outputs.digest }}
-          push-to-registry: true
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Trivy
         uses: aquasecurity/setup-trivy@v0.2.6
         with:
           version: v0.69.2
+
       - name: Generate SBOM
         run: trivy image --format spdx-json --output sbom.spdx.json ${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
 
@@ -139,6 +163,6 @@ jobs:
         uses: actions/attest-sbom@v2
         with:
           subject-name: ${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.digest.outputs.digest }}
+          subject-digest: ${{ needs.build.outputs.digest }}
           sbom-path: sbom.spdx.json
           push-to-registry: true

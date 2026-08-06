@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/jeeftor/klipbord/main/icon.svg" width="120" alt="Klipbord logo" />
+<img src="https://raw.githubusercontent.com/jeeftor/klipbord/master/icon.svg" width="120" alt="Klipbord logo" />
 
 # Klipbord
 
@@ -12,6 +12,7 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 [![Go](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Tests](https://img.shields.io/github/actions/workflow/status/jeeftor/klipbord/ci.yml?style=flat-square&label=tests)](https://github.com/jeeftor/klipbord/actions)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Security](https://github.com/jeeftor/klipbord/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/jeeftor/klipbord/actions/workflows/security.yml)
 
 </div>
 
