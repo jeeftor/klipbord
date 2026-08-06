@@ -75,9 +75,33 @@ kb rm ITEM_ID
 Uploads print their share URL to standard output, so they compose cleanly with
 shell scripts. Use `--json` when a script needs item metadata.
 
-Download the matching archive from the GitHub release assets, then run
-`kb login`. Profile settings are stored in your normal config directory while
-tokens and header values stay in your operating system keychain.
+### Installing `kb`
+
+**One-liner (macOS/Linux):**
+```bash
+curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh | sh
+```
+
+The installer detects your OS/arch, downloads the matching binary, verifies
+the SHA256 checksum, and optionally verifies the cosign signature if cosign
+is installed. It installs to `~/.local/bin/kb` (or `/usr/local/bin/kb` as root).
+
+Flags:
+```bash
+# Install a specific version
+curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh | sh -s -- --version v2.13.0
+
+# Install to a custom directory
+curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh | sh -s -- --install-dir /opt/bin
+```
+
+**Manual install:** Download the matching archive from the
+[GitHub releases page](https://github.com/jeeftor/klipbord/releases), extract
+it, and move the `kb` binary to your PATH.
+
+Once installed, run `kb login`. Profile settings are stored in your normal
+config directory while tokens and header values stay in your operating system
+keychain.
 
 ```bash
 # Cloudflare Access service token (recommended for a Cloudflare-protected URL)
