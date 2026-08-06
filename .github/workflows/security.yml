@@ -1,0 +1,105 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy vulnerability scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Run go mod download
+        run: go mod download
+
+      - name: Trivy filesystem scan (Go dependencies)
+        uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Trivy Dockerfile scan
+        uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-dockerfile.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          scanners: misconfig
+          # Limit the scan to the Dockerfile context
+          include: 'Dockerfile'
+
+      - name: Build Docker image for scanning
+        id: build
+        run: |
+          docker build -t klipbord:scan .
+          echo "image=klipbord:scan" >> $GITHUB_OUTPUT
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          image-ref: klipbord:scan
+          format: sarif
+          output: trivy-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-filesystem
+
+      - name: Upload Dockerfile SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-dockerfile.sarif
+          category: trivy-dockerfile
+
+      - name: Upload image SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1.0.4
+        with:
+          go-version: '1.24'
+          go-package: ./...
