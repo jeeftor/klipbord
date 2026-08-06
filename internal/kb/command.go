@@ -144,7 +144,7 @@ func (state commandState) loginCommand() *cobra.Command {
 
 			// Auto-discover auth config from the server
 			if method == "" {
-				discovered, err := discoverAuthConfig(ctx, profileURL)
+				discovered, err := discoverAuthConfig(ctx, profileURL, state.version)
 				if err != nil {
 					_, _ = fmt.Fprintf(stderr, "Warning: could not auto-detect auth config from %s: %v\n", profileURL, err)
 					if stdinIsTerminal() {
@@ -194,6 +194,7 @@ func (state commandState) loginCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			client.SetUserAgent(state.version)
 			if _, err := client.List(ctx, nil); err != nil {
 				return fmt.Errorf("saved profile but connection test failed: %w", err)
 			}
@@ -524,34 +525,58 @@ func prompt(stderr, stdout io.Writer, label, defaultValue string) string {
 	return value
 }
 
-// authConfigResponse mirrors the server's /api/auth/config response.
+// authConfigResponse holds the OIDC config discovered from the server.
 type authConfigResponse struct {
-	Method   string   `json:"method"`
-	Issuer   string   `json:"issuer"`
-	ClientID string   `json:"client_id"`
-	Scopes   []string `json:"scopes"`
+	Method   string
+	Issuer   string
+	ClientID string
+	Scopes   []string
 }
 
-// discoverAuthConfig fetches /api/auth/config from the Klipbord server
-// to auto-detect the authentication method and OIDC settings.
-func discoverAuthConfig(ctx context.Context, serverURL string) (authConfigResponse, error) {
-	endpoint := strings.TrimRight(serverURL, "/") + "/api/auth/config"
+// discoverAuthConfig probes the server by making an unauthenticated request
+// with the klipbord-cli User-Agent. If the server is behind Authentik
+// forward_auth with CLI detection, it returns a 401 with X-OIDC-* headers.
+// If the server has no auth, it returns 200 (method=none).
+func discoverAuthConfig(ctx context.Context, serverURL, version string) (authConfigResponse, error) {
+	endpoint := strings.TrimRight(serverURL, "/") + "/api/files"
+	ua := "klipbord-cli/" + version
+	if ua == "klipbord-cli/" {
+		ua = "klipbord-cli/dev"
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return authConfigResponse{}, fmt.Errorf("create discovery request: %w", err)
 	}
-	client := &http.Client{Timeout: 10 * time.Second}
+	req.Header.Set("User-Agent", ua)
+	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
 	resp, err := client.Do(req)
 	if err != nil {
-		return authConfigResponse{}, fmt.Errorf("fetch auth config: %w", err)
+		return authConfigResponse{}, fmt.Errorf("probe server: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return authConfigResponse{}, fmt.Errorf("auth config endpoint returned %s", resp.Status)
+
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		// No auth required
+		return authConfigResponse{Method: "none"}, nil
+	case resp.StatusCode == http.StatusUnauthorized:
+		// CLI-aware forward_auth: read X-OIDC-* headers
+		config := authConfigResponse{Method: "oidc"}
+		config.Issuer = resp.Header.Get("X-OIDC-Issuer")
+		config.ClientID = resp.Header.Get("X-OIDC-Client-ID")
+		if scopes := resp.Header.Get("X-OIDC-Scopes"); scopes != "" {
+			config.Scopes = strings.Split(scopes, " ")
+		}
+		if config.Issuer == "" || config.ClientID == "" {
+			return authConfigResponse{}, errors.New("server returned 401 but no X-OIDC-* discovery headers")
+		}
+		return config, nil
+	case resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently:
+		// Browser-style redirect (forward_auth without CLI detection)
+		return authConfigResponse{}, errors.New("server requires browser-based auth (no CLI discovery headers); use --method, --issuer, and --client-id flags")
+	default:
+		return authConfigResponse{}, fmt.Errorf("unexpected response %s during discovery", resp.Status)
 	}
-	var config authConfigResponse
-	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
-		return authConfigResponse{}, fmt.Errorf("decode auth config: %w", err)
-	}
-	return config, nil
 }

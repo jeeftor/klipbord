@@ -42,6 +42,7 @@ type Client struct {
 	name        string
 	profile     Profile
 	store       *ConfigStore
+	userAgent   string
 }
 
 // NewClient loads a profile and creates an API client.
@@ -53,7 +54,15 @@ func NewClient(store *ConfigStore, profileName string, httpClient *http.Client) 
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 60 * time.Second}
 	}
-	return &Client{credentials: credentials, httpClient: httpClient, name: name, profile: profile, store: store}, nil
+	return &Client{credentials: credentials, httpClient: httpClient, name: name, profile: profile, store: store, userAgent: "klipbord-cli/dev"}, nil
+}
+
+// SetUserAgent sets the User-Agent header sent on all requests.
+func (client *Client) SetUserAgent(version string) {
+	if version == "" {
+		version = "dev"
+	}
+	client.userAgent = "klipbord-cli/" + version
 }
 
 // CreateText creates a text snippet from standard input.
@@ -214,6 +223,7 @@ func (client *Client) do(ctx context.Context, method, path string, body io.Reade
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
+	request.Header.Set("User-Agent", client.userAgent)
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
