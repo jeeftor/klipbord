@@ -1,14 +1,17 @@
 package kb
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/spf13/cobra"
@@ -27,11 +30,10 @@ var stdinIsTerminal = terminalInput
 func NewRootCommand(version string) *cobra.Command {
 	state := commandState{version: version}
 	root := &cobra.Command{
-		Use:           "kb [FILE...]",
-		Short:         "Upload and manage items in Klipbord",
-		Args:          cobra.ArbitraryArgs,
-		SilenceUsage:  true,
-		SilenceErrors: true,
+		Use:          "kb [FILE...]",
+		Short:        "Upload and manage items in Klipbord",
+		Args:         cobra.ArbitraryArgs,
+		SilenceUsage: true,
 		RunE: func(command *cobra.Command, paths []string) error {
 			if len(paths) == 0 && stdinIsTerminal() {
 				return command.Help()
@@ -46,7 +48,7 @@ func NewRootCommand(version string) *cobra.Command {
 	root.Flags().Bool("persistent", false, "make uploaded items persistent")
 	root.Flags().Bool("json", false, "write JSON output")
 	root.Version = version
-	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand())
+	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand())
 	return root
 }
 
@@ -124,11 +126,60 @@ func (state commandState) loginCommand() *cobra.Command {
 		Use:   "login",
 		Short: "Create or update a secure connection profile",
 		RunE: func(command *cobra.Command, _ []string) error {
+			stdout := command.OutOrStdout()
+			stderr := command.ErrOrStderr()
+			ctx := command.Context()
+
 			if profileName == "" {
 				profileName = "default"
 			}
+
+			// Interactive: prompt for URL if not provided
+			if profileURL == "" {
+				if !stdinIsTerminal() {
+					return errors.New("--url is required when stdin is not a terminal")
+				}
+				profileURL = prompt(stderr, stdout, "Klipbord server URL", "http://localhost:8080")
+			}
+
+			// Auto-discover auth config from the server
+			if method == "" {
+				discovered, err := discoverAuthConfig(ctx, profileURL)
+				if err != nil {
+					_, _ = fmt.Fprintf(stderr, "Warning: could not auto-detect auth config from %s: %v\n", profileURL, err)
+					if stdinIsTerminal() {
+						method = prompt(stderr, stdout, "Login method (none, oidc, bearer, cloudflare, headers)", "oidc")
+					} else {
+						return errors.New("--method is required when server discovery is unavailable and stdin is not a terminal")
+					}
+				} else {
+					method = discovered.Method
+					if method == "oidc" && issuer == "" {
+						issuer = discovered.Issuer
+						clientID = discovered.ClientID
+						if len(scopes) == 0 || (len(scopes) == 3 && scopes[0] == "openid") {
+							scopes = discovered.Scopes
+						}
+					}
+					_, _ = fmt.Fprintf(stderr, "Detected auth method: %s\n", method)
+				}
+			}
+
+			// Interactive: prompt for OIDC details if method is oidc and missing
+			if method == "oidc" && (issuer == "" || clientID == "") {
+				if !stdinIsTerminal() {
+					return errors.New("--issuer and --client-id are required for OIDC when not auto-discovered")
+				}
+				if issuer == "" {
+					issuer = prompt(stderr, stdout, "OIDC issuer URL", "")
+				}
+				if clientID == "" {
+					clientID = prompt(stderr, stdout, "OIDC client ID", "klipbord")
+				}
+			}
+
 			profile := Profile{URL: profileURL, Method: method, Issuer: issuer, ClientID: clientID, Scopes: scopes}
-			credentials, err := loginCredentials(command.Context(), command.ErrOrStderr(), profile, headerNames)
+			credentials, err := loginCredentials(ctx, stderr, profile, headerNames)
 			if err != nil {
 				return err
 			}
@@ -143,10 +194,10 @@ func (state commandState) loginCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := client.List(command.Context(), nil); err != nil {
+			if _, err := client.List(ctx, nil); err != nil {
 				return fmt.Errorf("saved profile but connection test failed: %w", err)
 			}
-			_, err = fmt.Fprintf(command.OutOrStdout(), "Profile %q is ready.\n", profileName)
+			_, err = fmt.Fprintf(stdout, "Logged in. Profile %q is ready.\n", profileName)
 			return err
 		},
 	}
@@ -157,8 +208,6 @@ func (state commandState) loginCommand() *cobra.Command {
 	command.Flags().StringVar(&clientID, "client-id", "", "OIDC public client ID")
 	command.Flags().StringSliceVar(&scopes, "scope", []string{"openid", "profile", "offline_access"}, "OIDC scopes")
 	command.Flags().StringSliceVar(&headerNames, "header", nil, "custom header name; repeat for each header")
-	_ = command.MarkFlagRequired("url")
-	_ = command.MarkFlagRequired("method")
 	return command
 }
 
@@ -186,6 +235,53 @@ func (state commandState) logoutCommand() *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&profileName, "name", "", "profile name")
+	return command
+}
+
+func (state commandState) statusCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "status",
+		Short: "Show current login status and active profile",
+		RunE: func(command *cobra.Command, _ []string) error {
+			stdout := command.OutOrStdout()
+			store, err := state.store()
+			if err != nil {
+				return err
+			}
+			config, err := store.Load()
+			if err != nil {
+				return err
+			}
+			if len(config.Profiles) == 0 {
+				_, err := fmt.Fprintln(stdout, "Not logged in. Run: kb login")
+				return err
+			}
+			activeName := state.profile
+			if activeName == "" {
+				activeName = config.ActiveProfile
+			}
+			if activeName == "" {
+				_, err := fmt.Fprintln(stdout, "Not logged in. Run: kb login")
+				return err
+			}
+			profile, ok := config.Profiles[activeName]
+			if !ok {
+				return fmt.Errorf("profile %q not found", activeName)
+			}
+			// Try to verify the connection
+			client, err := NewClient(store, activeName, nil)
+			if err != nil {
+				_, _ = fmt.Fprintf(stdout, "Profile: %s\nServer: %s\nMethod: %s\nStatus: credentials error (%v)\n", activeName, profile.URL, profile.Method, err)
+				return nil
+			}
+			if _, err := client.List(command.Context(), nil); err != nil {
+				_, _ = fmt.Fprintf(stdout, "Profile: %s\nServer: %s\nMethod: %s\nStatus: connected but API call failed (%v)\n", activeName, profile.URL, profile.Method, err)
+				return nil
+			}
+			_, err = fmt.Fprintf(stdout, "Profile: %s\nServer: %s\nMethod: %s\nStatus: logged in\n", activeName, profile.URL, profile.Method)
+			return err
+		},
+	}
 	return command
 }
 
@@ -406,4 +502,56 @@ func writeCreated(writer io.Writer, created CreatedItem, jsonOutput bool) error 
 	}
 	_, err := fmt.Fprintln(writer, created.URL)
 	return err
+}
+
+// prompt displays a label with a default value and reads a line from stdin.
+// If the user presses enter, the default is returned.
+func prompt(stderr, stdout io.Writer, label, defaultValue string) string {
+	if defaultValue != "" {
+		fmt.Fprintf(stderr, "%s [%s]: ", label, defaultValue)
+	} else {
+		fmt.Fprintf(stderr, "%s: ", label)
+	}
+	reader := bufio.NewReader(os.Stdin)
+	value, err := reader.ReadString('\n')
+	if err != nil {
+		return defaultValue
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// authConfigResponse mirrors the server's /api/auth/config response.
+type authConfigResponse struct {
+	Method   string   `json:"method"`
+	Issuer   string   `json:"issuer"`
+	ClientID string   `json:"client_id"`
+	Scopes   []string `json:"scopes"`
+}
+
+// discoverAuthConfig fetches /api/auth/config from the Klipbord server
+// to auto-detect the authentication method and OIDC settings.
+func discoverAuthConfig(ctx context.Context, serverURL string) (authConfigResponse, error) {
+	endpoint := strings.TrimRight(serverURL, "/") + "/api/auth/config"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return authConfigResponse{}, fmt.Errorf("create discovery request: %w", err)
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return authConfigResponse{}, fmt.Errorf("fetch auth config: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return authConfigResponse{}, fmt.Errorf("auth config endpoint returned %s", resp.Status)
+	}
+	var config authConfigResponse
+	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+		return authConfigResponse{}, fmt.Errorf("decode auth config: %w", err)
+	}
+	return config, nil
 }
