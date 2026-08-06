@@ -184,24 +184,30 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" dist/kb_* dist/install.sh --clobber
 
   # Guard job for provenance-kb: GitHub Actions can't put an if: condition
-  # directly on a reusable workflow (uses:) job that evaluates based on event
-  # context — it fails at startup with "workflow file issue". This guard
-  # evaluates the condition and outputs a boolean that the reusable workflow
-  # depends on.
+  # directly on a reusable workflow (uses:) job — it fails at startup with
+  # "workflow file issue". This guard evaluates the condition and only passes
+  # the hashes output on tag pushes. The reusable workflow always runs but
+  # receives empty hashes on non-tag pushes (which SLSA handles as a no-op).
   provenance-kb-guard:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     needs: release-kb
     runs-on: ubuntu-latest
     outputs:
-      is-tag: ${{ steps.check.outputs.is-tag }}
-      hashes: ${{ needs.release-kb.outputs.hashes }}
+      hashes: ${{ steps.check.outputs.hashes }}
     steps:
       - id: check
-        run: echo "is-tag=true" >> $GITHUB_OUTPUT
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          RAW_HASHES: ${{ needs.release-kb.outputs.hashes }}
+        run: |
+          if [ "$IS_TAG" = "true" ] && [ -n "$RAW_HASHES" ]; then
+            echo "hashes=$RAW_HASHES" >> $GITHUB_OUTPUT
+          else
+            echo "hashes=" >> $GITHUB_OUTPUT
+          fi
 
   provenance-kb:
     needs: provenance-kb-guard
-    if: needs.provenance-kb-guard.outputs.is-tag == 'true'
     permissions:
       actions: read
       id-token: write
