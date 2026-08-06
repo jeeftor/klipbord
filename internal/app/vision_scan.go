@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"image/png"
 	_ "image/jpeg" // register JPEG decoder
+	"image/png"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -98,6 +99,7 @@ func analyzeWithPresetScan(itemID string, preset *VisionPreset, promptText strin
 	result, err := analyzeImageScan(itemID, preset, promptText)
 	r.Latency = time.Since(start).Round(time.Millisecond).String()
 	if err != nil {
+		applyVisionRequestFailure(&r, err)
 		r.Error = err.Error()
 		return r
 	}
@@ -168,7 +170,7 @@ func callVisionAPIBytes(imgData []byte, preset *VisionPreset, promptText string)
 		req.Header.Set("Authorization", "Bearer "+preset.APIKey)
 	}
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{Timeout: visionRequestTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request: %w", err)
@@ -176,7 +178,13 @@ func callVisionAPIBytes(imgData []byte, preset *VisionPreset, promptText string)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d from vision endpoint", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, &visionRequestFailure{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       strings.TrimSpace(string(body)),
+			Headers:    responseDebugHeaders(resp.Header),
+		}
 	}
 
 	var chatResp visionChatResponse

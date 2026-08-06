@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -26,15 +26,15 @@ type VisionPreset struct {
 
 // VisionConfigFile is the on-disk format for vision configuration
 type VisionConfigFile struct {
-	Presets       map[string]*VisionPreset `json:"presets"`
-	ActivePreset  string                   `json:"active_preset"`
-	Enabled       bool                     `json:"enabled"`
+	Presets      map[string]*VisionPreset `json:"presets"`
+	ActivePreset string                   `json:"active_preset"`
+	Enabled      bool                     `json:"enabled"`
 }
 
 var (
-	visionConfigMu     sync.RWMutex
-	visionConfig       VisionConfigFile
-	visionConfigFile   string
+	visionConfigMu      sync.RWMutex
+	visionConfig        VisionConfigFile
+	visionConfigFile    string
 	visionEnvOverridden bool // true if env vars are overriding config
 )
 
@@ -296,7 +296,7 @@ type configError string
 func (e configError) Error() string { return string(e) }
 
 const (
-	errNotFound          = configError("preset not found")
+	errNotFound           = configError("preset not found")
 	errCannotDeleteActive = configError("cannot delete the active preset")
 	errCannotDeleteEnv    = configError("cannot delete the env preset")
 )

@@ -4,14 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d1117">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
 <title>Klipbord</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" media="print" onload="this.media='all'">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js" defer></script>
 <style>
 :root {
   --bg: #0d1117;
@@ -36,31 +37,37 @@ body {
   font-family: var(--font);
   font-size: 14px;
   line-height: 1.5;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
+  gap: 16px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex-shrink: 0;
   z-index: 100;
 }
 .header h1 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin: 0;
 }
 .header h1 .logo {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: block;
 }
@@ -74,6 +81,16 @@ body {
   border-radius: 12px;
   font-family: var(--mono);
 }
+.update-notice {
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.1);
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  border-radius: 12px;
+  padding: 5px 10px;
+  font-size: 12px;
+  text-decoration: none;
+}
+.update-notice:hover { background: rgba(88, 166, 255, 0.18); }
 .header-actions {
   display: flex;
   gap: 12px;
@@ -97,51 +114,74 @@ body {
   padding: 24px;
 }
 
-/* Drop zone */
-.dropzone {
+/* Unified input box */
+.unified-input {
   border: 2px dashed var(--border);
   border-radius: var(--radius);
-  padding: 48px 24px;
-  text-align: center;
-  margin-bottom: 24px;
-  transition: all 0.2s;
-  cursor: pointer;
   background: var(--bg-card);
+  transition: all 0.2s;
+  margin-bottom: 16px;
 }
-.dropzone:hover {
+.unified-input:hover {
   border-color: var(--accent);
-  background: var(--bg-hover);
 }
-.dropzone.dragover {
+.unified-input.dragover {
   border-color: var(--accent);
   background: rgba(88, 166, 255, 0.08);
   transform: scale(1.01);
 }
-.dropzone-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
+.unified-input-textarea {
+  width: 100%;
+  min-height: 100px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 16px;
+  resize: vertical;
+  transition: opacity 0.2s;
+}
+.unified-input-textarea:focus {
+  outline: none;
+}
+.unified-input-textarea::placeholder {
+  color: var(--text-muted);
   opacity: 0.6;
 }
-.dropzone-text {
-  font-size: 16px;
-  color: var(--text-muted);
+.unified-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
 }
-.dropzone-text strong {
+.unified-input-bar .bar-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: 1;
+}
+.unified-input-bar .bar-hint strong {
   color: var(--accent);
 }
-.dropzone-hint {
+.unified-input-bar .text-name {
+  flex: 0 1 200px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: var(--radius);
   font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 8px;
 }
-
-/* Camera */
-.camera-section {
-  text-align: center;
-  margin-bottom: 24px;
-  display: flex;
-  gap: 12px;
-  justify-content: center;
+.unified-input-bar .text-name:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.unified-input-bar .camera-btn {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 .camera-btn svg { vertical-align: middle; }
 .camera-modal {
@@ -277,45 +317,12 @@ body {
   margin-top: 8px;
 }
 
-/* Text input */
-.text-input-section {
-  margin-bottom: 24px;
-}
-.text-input {
-  width: 100%;
-  min-height: 120px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 13px;
-  padding: 16px;
-  resize: vertical;
-  transition: border-color 0.2s;
-}
-.text-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
+/* Text input (legacy — kept for text-input-actions if referenced) */
 .text-input-actions {
   display: flex;
   gap: 12px;
   margin-top: 8px;
   align-items: center;
-}
-.text-name {
-  flex: 1;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-}
-.text-name:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 
 /* Buttons */
@@ -429,6 +436,26 @@ body {
   color: var(--text-muted);
   font-size: 13px;
 }
+.items-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.items-loading[hidden] { display: none; }
+.items-loading::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spinner 0.7s linear infinite;
+}
+@keyframes spinner { to { transform: rotate(360deg); } }
 .persistent-controls {
   display: flex;
   gap: 8px;
@@ -467,54 +494,45 @@ body {
   color: var(--text-muted);
   margin-top: 4px;
 }
-/* Vision analysis section on item cards */
-.item-analysis {
-  padding: 8px 12px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-}
-.item-analysis-label {
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
+/* Vision analysis stays compact on cards; full output opens in the modal. */
+.analysis-summary {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
 }
-.item-analysis-label svg {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-}
-.item-analysis-text {
+.analysis-summary:hover { background: var(--bg-hover); color: var(--text); }
+.analysis-summary svg { width: 14px; height: 14px; flex-shrink: 0; }
+.analysis-summary-status { color: var(--text); font-weight: 600; }
+.analysis-summary-meta { margin-left: auto; font-size: 11px; }
+.analysis-summary-pending .analysis-summary-status { color: var(--accent); }
+.analysis-summary-failed .analysis-summary-status { color: var(--danger); }
+.analysis-detail { display: grid; gap: 16px; }
+.analysis-detail-entry { display: grid; gap: 8px; }
+.analysis-detail-heading { display: flex; align-items: center; gap: 8px; }
+.analysis-detail-heading strong { font-size: 13px; }
+.analysis-detail-meta { color: var(--text-muted); font-size: 11px; }
+.analysis-detail-description { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.analysis-detail-output {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--bg);
   color: var(--text);
+  font: 12px/1.5 var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 120px;
-  overflow-y: auto;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.4;
-  background: var(--bg);
-  padding: 6px 8px;
-  border-radius: 4px;
-  margin-top: 4px;
 }
-.item-analysis-pending {
-  color: var(--text-muted);
-  font-style: italic;
-}
-.item-analysis-error {
-  color: var(--danger);
-}
-.item-analysis-desc {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin-top: 4px;
-  font-style: italic;
-}
+.analysis-detail-error { margin: 0; color: var(--danger); font-size: 13px; }
 .items-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -552,6 +570,135 @@ body {
 .item-thumb .file-icon {
   font-size: 48px;
   opacity: 0.4;
+}
+.item-thumb .doc-preview {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg-card);
+}
+.item-thumb .doc-preview h1,
+.item-thumb .doc-preview h2,
+.item-thumb .doc-preview h3 {
+  font-size: 13px;
+  margin: 8px 0 4px;
+  color: var(--text);
+}
+.item-thumb .doc-preview p { margin: 4px 0; }
+.item-thumb .doc-preview code {
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+.item-thumb .doc-preview pre {
+  background: var(--bg);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 10px;
+  margin: 6px 0;
+}
+.item-thumb .doc-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.item-thumb .doc-preview th,
+.item-thumb .doc-preview td {
+  border: 1px solid var(--border);
+  padding: 3px 6px;
+  text-align: left;
+}
+.item-thumb .doc-preview th {
+  background: var(--bg);
+  font-weight: 600;
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+}
+.item-thumb .doc-preview th:hover { background: var(--bg-hover); }
+.item-thumb .doc-preview .json-key { color: #58a6ff; }
+.item-thumb .doc-preview .json-string { color: #7ee787; }
+.item-thumb .doc-preview .json-number { color: #f0883e; }
+.item-thumb .doc-preview .json-bool { color: #d2a8ff; }
+.item-thumb .doc-preview .json-null { color: var(--text-muted); }
+.item-thumb .audio-player {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+}
+.item-thumb .audio-player .audio-waveform {
+  width: 100%;
+  height: 60px;
+  cursor: pointer;
+  display: block;
+}
+.item-thumb .audio-player .audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.item-thumb .audio-player .audio-play-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.item-thumb .audio-player .audio-play-btn:hover {
+  background: var(--bg-hover);
+}
+.item-thumb .audio-player .audio-play-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.item-thumb .audio-player .audio-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.item-thumb .audio-player .audio-info {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  text-align: center;
+  width: 100%;
+  line-height: 1.3;
+}
+.item-thumb .video-info-overlay {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  padding: 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  text-align: center;
 }
 .item-thumb .code-preview {
   width: 100%;
@@ -609,7 +756,7 @@ body {
   padding: 12px 20px;
   border-radius: var(--radius);
   font-size: 13px;
-  z-index: 200;
+  z-index: 260;
   animation: slideIn 0.3s ease;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
@@ -861,25 +1008,39 @@ body {
 /* Responsive */
 @media (max-width: 600px) {
   .items-grid { grid-template-columns: 1fr; }
-  .header { padding: 12px 16px; }
+  .header { padding: 0 12px; gap: 8px; }
+  .header h1 { font-size: 15px; }
+  .header h1 .logo { width: 22px; height: 22px; }
+  .version-badge { display: none; }
   .main { padding: 16px; }
-  .tabs { padding: 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .tab { padding: 10px 12px; font-size: 13px; }
+  .unified-input-bar { flex-direction: column; align-items: stretch; gap: 6px; }
+  .unified-input-bar .text-name { flex: 1; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; }
+  .tab { padding: 0 10px; font-size: 13px; }
+  .tab-icon { width: 14px; height: 14px; }
+  .ttl-select { padding: 4px 8px; font-size: 12px; }
+  .log-drawer { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; transform: translateY(calc(100% - 68px)); }
+  .log-drawer.open { height: min(62dvh, 560px) !important; }
+  .log-drawer-resize { height: 20px; }
+  .log-drawer-header { min-height: 48px; padding: 0 12px; }
+  .log-drawer-copy { padding: 5px 8px; }
 }
 
 /* Tabs */
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border);
-  padding: 0 24px;
-  background: var(--bg);
-  position: sticky;
-  top: 57px;
-  z-index: 99;
+  flex: 1;
+  justify-content: center;
+  height: 52px;
+  align-items: center;
 }
 .tab {
-  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  height: 100%;
   cursor: pointer;
   border: none;
   background: none;
@@ -888,8 +1049,14 @@ body {
   font-weight: 500;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
+  text-decoration: none;
   transition: all 0.15s;
   font-family: var(--font);
+}
+.tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 .tab:hover { color: var(--text); }
 .tab.active {
@@ -897,7 +1064,100 @@ body {
   border-bottom-color: var(--accent);
 }
 .tab-content { display: none; }
-.tab-content.active { display: block; }
+.tab-content.active {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 68px;
+}
+
+/* Live log drawer */
+.log-drawer {
+  --log-drawer-height: 320px;
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  bottom: 16px;
+  height: var(--log-drawer-height);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  transform: translateY(calc(100% - 52px));
+  transition: transform 0.2s ease, height 0.1s ease;
+  z-index: 250;
+}
+.log-drawer.open { transform: translateY(0); }
+.log-drawer-resize {
+  height: 12px;
+  flex-shrink: 0;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.log-drawer-resize::after {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 3px;
+  margin: 5px auto 0;
+  border-radius: 2px;
+  background: var(--border);
+}
+.log-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 32px;
+  gap: 12px;
+  padding: 0 14px 8px;
+}
+.log-drawer-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.log-drawer-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.log-drawer-count { color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.log-drawer-actions { display: flex; align-items: center; gap: 6px; }
+.log-drawer-copy {
+  padding: 4px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.log-drawer-copy[hidden] { display: none; }
+.log-drawer-toggle { color: var(--text-muted); font-size: 16px; line-height: 1; }
+.log-drawer.open .log-drawer-toggle { transform: rotate(180deg); }
+.log-drawer-output {
+  flex: 1;
+  overflow: auto;
+  margin: 0 10px 10px;
+  padding: 10px 12px;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  background: var(--bg);
+  font: 12px/1.5 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line { display: block; color: var(--text-muted); }
+.log-line.error { color: var(--danger); }
+.log-line.warn { color: #d29922; }
+.log-line.success { color: var(--success); }
+.log-line.info { color: var(--accent); }
 
 /* API docs */
 .api-section {
@@ -963,6 +1223,18 @@ body {
 .api-example .url { color: var(--text); }
 .api-example .json-key { color: #79b8ff; }
 .api-example .json-str { color: #7ee787; }
+.api-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.api-note code {
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-family: var(--mono);
+}
 .copy-btn {
   float: right;
   font-size: 11px;
@@ -1040,7 +1312,18 @@ body {
 
 <div class="header">
   <h1><img src="/icon.svg" class="logo" alt="K"> Klipbord <span class="version-badge" id="versionBadge">{{VERSION}}</span></h1>
+  <div class="tabs">
+    <a class="tab active" data-tab="clipboard" href="/clip" onclick="switchTab('clipboard', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"></rect><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>Clipboard</a>
+    <a class="tab" data-tab="persistent" href="/persist" onclick="switchTab('persistent', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg>Persistent</a>
+    <a class="tab" data-tab="rest" href="/rest-web" onclick="switchTab('rest', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="19" cy="19" r="2"></circle><path d="m7 11 10-5M7 13l10 5"></path></svg>REST API</a>
+    <a class="tab" data-tab="mcp" href="/mcp-web" onclick="switchTab('mcp', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"></rect><path d="M12 2v4M8 13h.01M16 13h.01M8 17h8"></path></svg>MCP</a>
+    <a class="tab" data-tab="config" href="/config" onclick="switchTab('config', event)"><svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20.3h-3v-.08A1.7 1.7 0 0 0 10.68 18.66a1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.02 15a1.7 1.7 0 0 0-1.56-1.03H5.4v-3h.06A1.7 1.7 0 0 0 7.02 9.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.12-2.12.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V4.7h3v.02a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 8l-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.04v3h-.04A1.7 1.7 0 0 0 19.4 15z"></path></svg>Config</a>
+  </div>
   <div class="header-actions">
+    <a class="update-notice" id="updateNotice" hidden target="_blank" rel="noopener">New version available</a>
+    <button class="icon-btn" data-tooltip="Help & Shortcuts" onclick="openHelpModal()" style="padding:6px" aria-label="Help">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    </button>
     <select class="ttl-select" id="ttl">
       <option value="1h">Expires in 1 hour</option>
       <option value="1d">Expires in 1 day</option>
@@ -1051,49 +1334,31 @@ body {
   </div>
 </div>
 
-<div class="tabs">
-  <button class="tab active" onclick="switchTab('clipboard', event)">Clipboard</button>
-  <button class="tab" onclick="switchTab('persistent', event)">Persistent</button>
-  <button class="tab" onclick="switchTab('rest', event)">REST API</button>
-  <button class="tab" onclick="switchTab('mcp', event)">MCP</button>
-  <button class="tab" onclick="switchTab('config', event)">Config</button>
-</div>
-
 <!-- Tab: Clipboard -->
 <div class="tab-content active" id="tab-clipboard">
   <div class="main">
-    <!-- Drop zone -->
-    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
-      <div class="dropzone-icon">📋</div>
-      <div class="dropzone-text"><strong>Ctrl+V</strong> to paste an image or text, or drag & drop files here</div>
-      <div class="dropzone-hint">You can also click to browse, or paste text below</div>
-      <input type="file" id="fileInput" hidden multiple>
-    </div>
-
-    <!-- Camera button -->
-    <div class="camera-section">
-      <button class="btn btn-secondary camera-btn" onclick="openCamera(event)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        Take Snapshot
-      </button>
-      <button class="btn btn-secondary camera-btn" onclick="document.getElementById('cameraNativeInput').click()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        Camera
-      </button>
-      <input type="file" id="cameraNativeInput" accept="image/*" capture="environment" hidden>
+    <!-- Unified input box -->
+    <div class="unified-input" id="unifiedInput">
+      <textarea class="unified-input-textarea" id="textInput" placeholder="Type or paste text here... (Ctrl+Enter to submit)&#10;&#10;Or click below to upload files · Ctrl+V to paste image · drag & drop"></textarea>
+      <div class="unified-input-bar">
+        <span class="bar-hint"><strong>Ctrl+V</strong> paste · drag & drop · click to browse</span>
+        <input type="text" class="text-name" id="textName" placeholder="filename (optional)">
+        <button class="btn btn-secondary camera-btn" onclick="openCamera(event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          Snapshot
+        </button>
+        <button class="btn btn-secondary camera-btn" onclick="document.getElementById('cameraNativeInput').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          Camera
+        </button>
+        <button class="btn btn-primary" onclick="submitText()">Paste Text</button>
+        <input type="file" id="fileInput" hidden multiple>
+        <input type="file" id="cameraNativeInput" accept="image/*" capture="environment" hidden>
+      </div>
     </div>
 
     <!-- Upload progress -->
     <div class="upload-list" id="uploadList"></div>
-
-    <!-- Text input -->
-    <div class="text-input-section">
-      <textarea class="text-input" id="textInput" placeholder="Paste text or code here... (Ctrl+Enter to submit)"></textarea>
-      <div class="text-input-actions">
-        <input type="text" class="text-name" id="textName" placeholder="filename (optional, e.g. snippet.py)">
-        <button class="btn btn-primary" onclick="submitText()">Paste Text</button>
-      </div>
-    </div>
 
     <!-- Items -->
     <div class="pull-indicator" id="pullIndicator">Pull to refresh</div>
@@ -1105,6 +1370,7 @@ body {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
       <input type="text" class="search-input" id="clipboardSearch" placeholder="Search filenames, text content, or vision results..." oninput="renderClipboardGrid()">
     </div>
+    <div class="items-loading" id="itemsLoading" role="status">Loading clipboard…</div>
     <div id="itemsGrid" class="items-grid"></div>
     <div id="emptyState" class="empty" style="display:none">
       <div class="empty-icon">📋</div>
@@ -1443,24 +1709,13 @@ body {
     <div class="api-card">
       <div class="api-card-header">
         <span class="api-method GET">GET</span>
-        <span class="api-path">/f/{id}</span>
-        <span class="api-desc">Direct file access (in browser)</span>
+        <span class="api-path">/{id}</span>
+        <span class="api-desc">Direct item access (file, image, or text)</span>
       </div>
       <div class="api-card-body">
         <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
-        <div class="api-example"><span class="url" id="restUrl7"></span>/f/<span class="json-key">{id}</span></div>
-      </div>
-    </div>
-
-    <div class="api-card">
-      <div class="api-card-header">
-        <span class="api-method GET">GET</span>
-        <span class="api-path">/t/{id}</span>
-        <span class="api-desc">Direct text access (raw, in browser)</span>
-      </div>
-      <div class="api-card-body">
-        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
-        <div class="api-example"><span class="url" id="restUrl8"></span>/t/<span class="json-key">{id}</span></div>
+        <div class="api-example"><span class="url" id="restUrl7"></span>/<span class="json-key">{id}</span></div>
+        <div class="api-note">Append <code>/filename.ext</code> so download tools save with the right name, or add <code>?download=1</code> to force a download. The legacy <code>/link/{id}</code> form also works.</div>
       </div>
     </div>
 
@@ -1485,6 +1740,18 @@ body {
       <div class="api-card-body">
         <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
         <div class="api-example"><span class="curl">curl</span> <span class="url" id="restUrl10"></span>/api/version</div>
+      </div>
+    </div>
+
+    <div class="api-card">
+      <div class="api-card-header">
+        <span class="api-method GET">GET</span>
+        <span class="api-path">/api/update-check</span>
+        <span class="api-desc">Check whether a newer Klipbord release is available</span>
+      </div>
+      <div class="api-card-body">
+        <button class="btn btn-secondary copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="api-example"><span class="curl">curl</span> <span class="url" id="restUpdateUrl"></span>/api/update-check</div>
       </div>
     </div>
   </div>
@@ -1770,6 +2037,65 @@ body {
   </div>
 </div>
 
+<!-- Help modal -->
+<div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeHelpModal()" hidden>
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3>Help & Shortcuts</h3>
+      <button class="icon-btn" data-tooltip="Close" onclick="closeHelpModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Keyboard</h4>
+      <table style="width:100%;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:3px 0"><kbd>Ctrl+V</kbd></td><td style="color:var(--text-muted)">Paste image or text from clipboard</td></tr>
+        <tr><td style="padding:3px 0"><kbd>Esc</kbd></td><td style="color:var(--text-muted)">Close modal / lightbox</td></tr>
+      </table>
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Share Links</h4>
+      <table style="width:100%;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}/{filename}</td><td style="color:var(--text-muted)">Canonical link — filename visible in URL</td></tr>
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}</td><td style="color:var(--text-muted)">Auto-redirects to named form</td></tr>
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}?download=1</td><td style="color:var(--text-muted)">Forces browser download</td></tr>
+        <tr><td style="padding:3px 0;font-family:var(--mono);font-size:11px">/{id}?direct=1</td><td style="color:var(--text-muted)">Serve inline, skip redirect (curl -O)</td></tr>
+      </table>
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">File Cards</h4>
+      <table style="width:100%;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:3px 0">Open</td><td style="color:var(--text-muted)">View inline in a new tab</td></tr>
+        <tr><td style="padding:3px 0">Download</td><td style="color:var(--text-muted)">Save with the original filename</td></tr>
+        <tr><td style="padding:3px 0">Tag icon</td><td style="color:var(--text-muted)">Edit MIME type (fix wrong detection)</td></tr>
+        <tr><td style="padding:3px 0">Pin</td><td style="color:var(--text-muted)">Keep item forever (exempt from TTL)</td></tr>
+        <tr><td style="padding:3px 0">Scan</td><td style="color:var(--text-muted)">Re-run vision analysis (images only)</td></tr>
+        <tr><td style="padding:3px 0">Waveform</td><td style="color:var(--text-muted)">Click to seek, play/pause button (audio files)</td></tr>
+        <tr><td style="padding:3px 0">Video</td><td style="color:var(--text-muted)">Inline player with controls (MP4, WebM, MOV)</td></tr>
+        <tr><td style="padding:3px 0">PDF</td><td style="color:var(--text-muted)">Inline viewer with browser's native reader</td></tr>
+        <tr><td style="padding:3px 0">Markdown</td><td style="color:var(--text-muted)">Rendered as formatted HTML</td></tr>
+        <tr><td style="padding:3px 0">JSON</td><td style="color:var(--text-muted)">Pretty-printed with syntax highlighting</td></tr>
+        <tr><td style="padding:3px 0">CSV/TSV</td><td style="color:var(--text-muted)">Table view with click-to-sort columns</td></tr>
+      </table>
+      <h4 style="margin:0 0 8px;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">MIME Detection</h4>
+      <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.6">When a file is uploaded with a generic type (e.g. <code style="font-family:var(--mono);font-size:11px">application/octet-stream</code> from curl), Klipbord detects the real type from the filename extension first, then by sniffing the file content. Use the tag icon on any file card to override.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Live log drawer -->
+<aside class="log-drawer" id="logDrawer" aria-label="Server logs">
+  <div class="log-drawer-resize" id="logDrawerResize" aria-hidden="true"></div>
+  <div class="log-drawer-header">
+    <button class="log-drawer-open" id="logDrawerToggle" type="button" onclick="toggleLogDrawer()" aria-expanded="false">
+      <span class="log-drawer-title">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+        <span>Logs</span>
+        <span class="log-drawer-count" id="logDrawerCount">Open to view</span>
+      </span>
+      <span class="log-drawer-toggle" aria-hidden="true">⌃</span>
+    </button>
+    <div class="log-drawer-actions">
+      <button class="btn btn-secondary log-drawer-copy" id="logDrawerCopy" type="button" onclick="copyLogs(event)" hidden>Copy</button>
+    </div>
+  </div>
+  <pre class="log-drawer-output" id="logDrawerOutput">Open Logs to load the latest server events.</pre>
+</aside>
+
 <!-- Image lightbox -->
 <div class="img-lightbox" id="imgLightbox" onclick="closeImageLightbox()">
   <img id="imgLightboxImg" src="" alt="" onclick="event.stopPropagation()">
@@ -1833,17 +2159,141 @@ const ICONS = {
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg>',
   scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><line x1="7" y1="12" x2="17" y2="12"></line></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
+  tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>',
+  audio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>',
 };
 
-// --- Tab switching ---
-function switchTab(tab, ev) {
+// --- Browser routes and tab switching ---
+const tabRoutes = {
+  clipboard: '/clip',
+  persistent: '/persist',
+  rest: '/rest-web',
+  mcp: '/mcp-web',
+  config: '/config',
+};
+
+function tabFromLocation() {
+  return Object.entries(tabRoutes).find(([, path]) => path === window.location.pathname)?.[0] || 'clipboard';
+}
+
+function activateTab(tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  if (ev) ev.target.classList.add('active');
+  document.querySelector(`.tab[data-tab="${tab}"]`)?.classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'clipboard') loadItems();
   if (tab === 'persistent') loadPersistentItems();
-  if (tab === 'config') { loadVisionConfig(); loadVisionPrompts(); }
+  if (tab === 'config') { loadVisionConfig(); loadVisionPrompts(); resumeMatrixIfRunning(); }
 }
+
+function switchTab(tab, event) {
+  event?.preventDefault();
+  activateTab(tab);
+  if (window.location.pathname !== tabRoutes[tab]) {
+    window.history.pushState({ tab }, '', tabRoutes[tab]);
+  }
+}
+
+window.addEventListener('popstate', () => activateTab(tabFromLocation()));
+
+let logLoadInFlight = false;
+
+function logLineClass(line) {
+  if (/\b(error|failed|fatal|panic)\b/i.test(line)) return 'error';
+  if (/\b(warn|warning)\b/i.test(line)) return 'warn';
+  if (/\b(complete|success|ready|listening)\b/i.test(line)) return 'success';
+  if (/\b(info|starting|started|loading)\b/i.test(line)) return 'info';
+  return '';
+}
+
+function renderLogs(lines) {
+  const output = document.getElementById('logDrawerOutput');
+  output.replaceChildren();
+  if (lines.length === 0) {
+    output.textContent = 'No server log lines yet.';
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  lines.forEach(line => {
+    const entry = document.createElement('span');
+    entry.className = `log-line ${logLineClass(line)}`;
+    entry.textContent = line;
+    fragment.appendChild(entry);
+  });
+  output.appendChild(fragment);
+}
+
+function loadLogs() {
+  if (logLoadInFlight) return;
+  const output = document.getElementById('logDrawerOutput');
+  const count = document.getElementById('logDrawerCount');
+  if (!output || !count) return;
+  logLoadInFlight = true;
+  const isAtBottom = output.scrollTop + output.clientHeight >= output.scrollHeight - 8;
+  fetch(`${API}/logs`)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+    .then(data => {
+      const lines = data.lines || [];
+      renderLogs(lines);
+      count.textContent = `${lines.length} / 500 lines`;
+      if (isAtBottom) output.scrollTop = output.scrollHeight;
+    })
+    .catch(err => {
+      output.textContent = `Failed to load logs: ${err.message}`;
+      count.textContent = 'Logs unavailable';
+    })
+    .finally(() => { logLoadInFlight = false; });
+}
+
+function copyLogs(event) {
+  event?.stopPropagation();
+  const output = document.getElementById('logDrawerOutput');
+  navigator.clipboard.writeText(output.textContent)
+    .then(() => showToast('Logs copied'))
+    .catch(() => showToast('Could not copy logs', true));
+}
+
+function setLogDrawerOpen(open) {
+  const drawer = document.getElementById('logDrawer');
+  const toggle = document.getElementById('logDrawerToggle');
+  const copy = document.getElementById('logDrawerCopy');
+  drawer.classList.toggle('open', open);
+  toggle.setAttribute('aria-expanded', String(open));
+  copy.hidden = !open;
+  if (open) loadLogs();
+}
+
+function toggleLogDrawer() {
+  const drawer = document.getElementById('logDrawer');
+  setLogDrawerOpen(!drawer.classList.contains('open'));
+}
+
+(() => {
+  const drawer = document.getElementById('logDrawer');
+  const resize = document.getElementById('logDrawerResize');
+  let startY = 0;
+  let startHeight = 0;
+  resize.addEventListener('pointerdown', event => {
+    if (!drawer.classList.contains('open') || window.matchMedia('(max-width: 600px)').matches) return;
+    startY = event.clientY;
+    startHeight = drawer.getBoundingClientRect().height;
+    resize.setPointerCapture(event.pointerId);
+    drawer.style.transition = 'none';
+  });
+  resize.addEventListener('pointermove', event => {
+    if (!resize.hasPointerCapture(event.pointerId)) return;
+    const height = Math.max(180, Math.min(window.innerHeight * 0.82, startHeight + startY - event.clientY));
+    drawer.style.setProperty('--log-drawer-height', `${height}px`);
+  });
+  resize.addEventListener('pointerup', event => {
+    if (!resize.hasPointerCapture(event.pointerId)) return;
+    resize.releasePointerCapture(event.pointerId);
+    drawer.style.removeProperty('transition');
+  });
+})();
 
 // --- Populate API/MCP URLs on load ---
 (function populateUrls() {
@@ -1854,6 +2304,8 @@ function switchTab(tab, ev) {
     const el = document.getElementById('restUrl' + i);
     if (el) el.textContent = BASE;
   }
+  const updateURL = document.getElementById('restUpdateUrl');
+  if (updateURL) updateURL.textContent = BASE;
   // Chunked upload URLs
   for (const suffix of ['b', 'c', 'd', 'e']) {
     const el = document.getElementById('restUrl2' + suffix);
@@ -1884,6 +2336,18 @@ function switchTab(tab, ev) {
     '}';
 })();
 
+// --- Update notice ---
+fetch('/api/update-check')
+  .then(response => response.ok ? response.json() : null)
+  .then(update => {
+    if (!update?.update_available || !update.release_url) return;
+    const notice = document.getElementById('updateNotice');
+    notice.href = update.release_url;
+    notice.textContent = `New version available: ${update.latest_version}`;
+    notice.hidden = false;
+  })
+  .catch(() => {});
+
 // --- Copy code blocks ---
 function copyCode(btn) {
   const block = btn.nextElementSibling;
@@ -1911,20 +2375,28 @@ document.getElementById('cameraNativeInput').addEventListener('change', function
   this.value = '';
 });
 
-// --- Drag and drop ---
-const dropzone = document.getElementById('dropzone');
+// --- Drag and drop on unified input ---
+const unifiedInput = document.getElementById('unifiedInput');
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
-  dropzone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+  unifiedInput.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
 });
 ['dragenter', 'dragover'].forEach(ev => {
-  dropzone.addEventListener(ev, () => dropzone.classList.add('dragover'));
+  unifiedInput.addEventListener(ev, () => unifiedInput.classList.add('dragover'));
 });
 ['dragleave', 'drop'].forEach(ev => {
-  dropzone.addEventListener(ev, () => dropzone.classList.remove('dragover'));
+  unifiedInput.addEventListener(ev, () => unifiedInput.classList.remove('dragover'));
 });
-dropzone.addEventListener('drop', e => {
+unifiedInput.addEventListener('drop', e => {
   for (const file of e.dataTransfer.files) {
     uploadFile(file);
+  }
+});
+
+// Click on the bar area (not textarea/buttons) → open file picker
+unifiedInput.querySelector('.unified-input-bar').addEventListener('click', (e) => {
+  // Only trigger file picker if clicking the bar hint area, not buttons/inputs
+  if (e.target.classList.contains('bar-hint') || e.target === e.currentTarget) {
+    document.getElementById('fileInput').click();
   }
 });
 
@@ -2283,17 +2755,46 @@ async function deleteItem(id, name) {
     .catch(err => showToast('Delete failed: ' + err, true));
 }
 
-function copyUrl(id) {
-  const url = `${window.location.origin}/f/${id}`;
+function itemLinkPath(id, name) {
+  // Use the short form /{id} (or /{id}/{filename}) so share links are
+  // compact. The /link/{id} form still works for backwards compatibility.
+  if (name) {
+    const safe = name.split('/').pop().replace(/[\x00\\/]/g, '');
+    if (safe && safe !== '.' && safe !== '..') {
+      return `/${id}/${encodeURIComponent(safe)}`;
+    }
+  }
+  return `/${id}`;
+}
+
+function editMimeType(id, currentMime, name) {
+  const input = prompt(`Edit MIME type for "${name}":`, currentMime || 'application/octet-stream');
+  if (input === null) return; // user cancelled
+  const mime = input.trim();
+  if (mime === '') { showToast('MIME type cannot be empty', true); return; }
+  fetch(`${API}/files/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mime_type: mime }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showToast('Error: ' + data.error, true); return; }
+      showToast(`Updated MIME type to ${data.mime_type}`);
+      loadClipboard();
+    })
+    .catch(err => showToast('Update failed: ' + err, true));
+}
+
+function copyUrl(id, name) {
+  const url = `${window.location.origin}${itemLinkPath(id, name)}`;
   navigator.clipboard.writeText(url).then(() => {
     showToast(`Copied URL: ${url}`);
   });
 }
 
 function shareItem(id, type, name) {
-  const url = type === 'text'
-    ? `${window.location.origin}/t/${id}`
-    : `${window.location.origin}/f/${id}`;
+  const url = `${window.location.origin}${itemLinkPath(id, name)}`;
   if (navigator.share) {
     navigator.share({ title: name, url: url }).catch(() => {});
   } else {
@@ -2303,8 +2804,8 @@ function shareItem(id, type, name) {
   }
 }
 
-function copyTextUrl(id) {
-  const url = `${window.location.origin}/t/${id}`;
+function copyTextUrl(id, name) {
+  const url = `${window.location.origin}${itemLinkPath(id, name)}`;
   navigator.clipboard.writeText(url).then(() => {
     showToast(`Copied URL: ${url}`);
   });
@@ -2323,7 +2824,8 @@ function copyTextContent(id) {
 }
 
 function copyImageToClipboard(id) {
-  fetch(`/f/${id}`)
+  // Use ?direct=1 to skip the filename redirect when fetching for clipboard
+  fetch(`/link/${id}?direct=1`)
     .then(r => r.blob())
     .then(blob => {
       if (!navigator.clipboard || !navigator.clipboard.write) {
@@ -2336,6 +2838,290 @@ function copyImageToClipboard(id) {
       }).catch(() => showToast('Failed to copy image — try a Chromium browser', true));
     })
     .catch(() => showToast('Failed to fetch image', true));
+}
+
+// --- Audio waveform player ---
+// Per-item state: { audio, peaks, duration, playing, progress, rafId, decoded }
+const _audioState = {};
+
+function _formatTime(sec) {
+  if (!sec || !isFinite(sec)) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function _drawAudioWaveform(id) {
+  const state = _audioState[id];
+  if (!state) return;
+  const canvas = document.querySelector(`canvas.audio-waveform[data-audio-id="${id}"]`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.offsetWidth || 200;
+  const h = canvas.height = canvas.offsetHeight || 60;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!state.peaks || state.peaks.length === 0) {
+    // Placeholder — if still loading, show status text
+    if (_audioLoadingIds.has(id)) {
+      _setAudioStatus(id, state.queued ? 'Queued…' : 'Loading…');
+    } else {
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(0, h / 2 - 1, w, 2);
+    }
+    return;
+  }
+
+  const barW = w / state.peaks.length;
+  const progressX = state.progress * w;
+  for (let i = 0; i < state.peaks.length; i++) {
+    const barH = Math.max(2, state.peaks[i] * h * 0.85);
+    const x = i * barW;
+    const y = (h - barH) / 2;
+    ctx.fillStyle = x < progressX ? '#f59e0b' : '#475569';
+    ctx.fillRect(x, y, Math.max(1, barW - 0.5), barH);
+  }
+}
+
+function _computePeaks(audioBuffer, numPeaks = 200) {
+  const channelData = audioBuffer.getChannelData(0);
+  const samples = channelData.length;
+  if (samples === 0) return [];
+  const bucketSize = Math.max(1, Math.floor(samples / numPeaks));
+  const peaks = [];
+  for (let i = 0; i < numPeaks; i++) {
+    const start = i * bucketSize;
+    const end = Math.min(start + bucketSize, samples);
+    let max = 0;
+    for (let j = start; j < end; j++) {
+      const v = Math.abs(channelData[j]);
+      if (v > max) max = v;
+    }
+    peaks.push(max);
+  }
+  // Normalize to 0-1
+  const peakMax = Math.max(...peaks, 0.001);
+  return peaks.map(p => p / peakMax);
+}
+
+// Audio decode queue — serialize fetch+decode to avoid overwhelming the
+// browser with simultaneous large ArrayBuffer allocations.
+let _audioDecodeQueue = [];
+let _audioDecoding = false;
+const _audioLoadingIds = new Set();
+
+function _setAudioStatus(id, text) {
+  const canvas = document.querySelector(`canvas.audio-waveform[data-audio-id="${id}"]`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.offsetWidth || 200;
+  const h = canvas.height = canvas.offsetHeight || 60;
+  ctx.clearRect(0, 0, w, h);
+  if (!text) return;
+  // Draw placeholder line
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(0, h / 2 - 1, w, 2);
+  // Draw status text
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, h / 2 - 10);
+}
+
+function _enqueueAudioDecode(id, url) {
+  let state = _audioState[id];
+  if (!state) {
+    state = _audioState[id] = { peaks: null, duration: 0, playing: false, progress: 0, decoded: false };
+  }
+  if (state.decoded || state.queued) return;
+  state.queued = true;
+  _audioDecodeQueue.push({ id, url });
+  // Show queue position
+  _setAudioStatus(id, 'Queued…');
+  _processAudioQueue();
+}
+
+async function _processAudioQueue() {
+  if (_audioDecoding) return;
+  _audioDecoding = true;
+  while (_audioDecodeQueue.length > 0) {
+    const { id, url } = _audioDecodeQueue.shift();
+    const state = _audioState[id];
+    if (!state || state.decoded) continue;
+    state.queued = false;
+    state.decoded = true;
+    _setAudioStatus(id, 'Decoding…');
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buf = await resp.arrayBuffer();
+      const fileSize = buf.byteLength;
+      const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!Ctx) throw new Error('OfflineAudioContext not supported');
+      const ctx = new Ctx(1, 1, 44100);
+      const audioBuffer = await ctx.decodeAudioData(buf);
+      state.peaks = _computePeaks(audioBuffer);
+      state.duration = audioBuffer.duration;
+      state.sampleRate = audioBuffer.sampleRate;
+      state.channels = audioBuffer.numberOfChannels;
+      state.bitrate = state.duration > 0 ? Math.round((fileSize * 8) / state.duration / 1000) : 0;
+      _audioLoadingIds.delete(id);
+      _drawAudioWaveform(id);
+      _updateAudioTime(id);
+      _updateAudioInfo(id);
+    } catch (err) {
+      console.warn(`[audio] decode failed for ${id}:`, err);
+      state.peaks = [];
+      state.decoded = false;
+      _audioLoadingIds.delete(id);
+      _setAudioStatus(id, 'Click play to load');
+    }
+  }
+  _audioDecoding = false;
+}
+
+async function _decodeAudio(id, url) {
+  _enqueueAudioDecode(id, url);
+}
+
+function _updateAudioTime(id) {
+  const state = _audioState[id];
+  if (!state) return;
+  const timeEl = document.querySelector(`span.audio-time[data-audio-id="${id}"]`);
+  if (timeEl) {
+    const cur = state.audio ? state.audio.currentTime : 0;
+    timeEl.textContent = `${_formatTime(cur)} / ${_formatTime(state.duration)}`;
+  }
+}
+
+function _updateAudioInfo(id) {
+  const state = _audioState[id];
+  if (!state) return;
+  const infoEl = document.querySelector(`.audio-info[data-audio-id="${id}"]`);
+  if (!infoEl) return;
+  // Don't overwrite if server-side ffprobe info is already shown (contains "·")
+  if (infoEl.textContent.includes('·')) return;
+  const parts = [];
+  parts.push(_formatTime(state.duration));
+  if (state.channels) parts.push(state.channels === 1 ? 'mono' : `${state.channels}ch`);
+  if (state.sampleRate) parts.push(`${(state.sampleRate / 1000).toFixed(1)}kHz`);
+  if (state.bitrate) parts.push(`${state.bitrate}kbps`);
+  infoEl.textContent = parts.join(' · ');
+}
+
+function _updateAudioProgress(id) {
+  const state = _audioState[id];
+  if (!state || !state.audio) return;
+  state.progress = state.duration > 0 ? state.audio.currentTime / state.duration : 0;
+  _drawAudioWaveform(id);
+  _updateAudioTime(id);
+  if (state.playing) {
+    state.rafId = requestAnimationFrame(() => _updateAudioProgress(id));
+  }
+}
+
+function toggleAudioPlay(id, url) {
+  let state = _audioState[id];
+  if (!state) {
+    state = _audioState[id] = { peaks: null, duration: 0, playing: false, progress: 0, decoded: false };
+  }
+
+  // Lazy decode on first interaction — prioritize this one (jump the queue)
+  if (!state.decoded && !state.queued) {
+    _audioDecodeQueue.unshift({ id, url });
+    state.queued = true;
+    _processAudioQueue();
+  }
+
+  if (!state.audio) {
+    state.audio = new Audio(url);
+    state.audio.addEventListener('ended', () => {
+      state.playing = false;
+      state.progress = 0;
+      _setPlayBtnIcon(id, false);
+      _drawAudioWaveform(id);
+      _updateAudioTime(id);
+    });
+  }
+
+  if (state.audio.paused) {
+    state.audio.play().then(() => {
+      state.playing = true;
+      _setPlayBtnIcon(id, true);
+      _updateAudioProgress(id);
+    }).catch(() => {});
+  } else {
+    state.audio.pause();
+    state.playing = false;
+    _setPlayBtnIcon(id, false);
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+  }
+}
+
+function _setPlayBtnIcon(id, playing) {
+  const btn = document.querySelector(`button.audio-play-btn[data-audio-id="${id}"]`);
+  if (btn) btn.innerHTML = playing ? ICONS.pause : ICONS.play;
+}
+
+function seekAudio(id, e) {
+  const state = _audioState[id];
+  if (!state || !state.duration) return;
+  const canvas = document.querySelector(`canvas.audio-waveform[data-audio-id="${id}"]`);
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  if (!state.audio) {
+    state.audio = new Audio(canvas.closest('.audio-player').dataset.audioUrl);
+    state.audio.addEventListener('ended', () => {
+      state.playing = false;
+      state.progress = 0;
+      _setPlayBtnIcon(id, false);
+      _drawAudioWaveform(id);
+      _updateAudioTime(id);
+    });
+  }
+  state.audio.currentTime = pct * state.duration;
+  state.progress = pct;
+  _drawAudioWaveform(id);
+  _updateAudioTime(id);
+}
+
+// Wire up click-to-seek on waveform canvases (delegated)
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains('audio-waveform')) {
+    const id = e.target.dataset.audioId;
+    if (id) seekAudio(id, e);
+  }
+});
+
+// Lazy-decode audio waveforms when they scroll into view
+function initAudioWaveforms(items) {
+  const audioItems = items.filter(i => i.mime_type && i.mime_type.startsWith('audio/'));
+  if (audioItems.length === 0) return;
+  // Show initial status on canvases that will need decoding
+  requestAnimationFrame(() => {
+    audioItems.forEach(item => {
+      if (_audioLoadingIds.has(item.id)) {
+        _setAudioStatus(item.id, 'Queued…');
+      }
+    });
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const player = entry.target;
+          const id = player.dataset.audioId;
+          const url = player.dataset.audioUrl;
+          if (id && url) _decodeAudio(id, url);
+          observer.unobserve(player);
+        }
+      });
+    }, { rootMargin: '100px' });
+    audioItems.forEach(item => {
+      const el = document.querySelector(`.audio-player[data-audio-id="${item.id}"]`);
+      if (el) observer.observe(el);
+    });
+  });
 }
 
 // --- Camera ---
@@ -2421,9 +3207,7 @@ function copyModalUrl() {
   if (!currentModalId) return;
   const item = window._currentItem;
   if (!item) return;
-  const url = item.type === 'text'
-    ? `${window.location.origin}/t/${item.id}`
-    : `${window.location.origin}/f/${item.id}`;
+  const url = `${window.location.origin}${itemLinkPath(item.id, item.name)}`;
   navigator.clipboard.writeText(url).then(() => showToast(`Copied: ${url}`));
 }
 
@@ -2452,6 +3236,68 @@ function viewText(id) {
     });
 }
 
+function viewAnalysis(id) {
+  const item = allClipboardItems.find(entry => entry.id === id)
+    || allPersistentItems.find(entry => entry.id === id);
+  if (!item || !item.analyses) {
+    showToast('Analysis is no longer available', true);
+    return;
+  }
+
+  currentModalId = id;
+  document.getElementById('modalTitle').textContent = `Analysis · ${item.name}`;
+  document.getElementById('modalCopyContentBtn').style.display = 'none';
+  document.getElementById('modalBody').textContent = 'Loading analysis…';
+  document.getElementById('modal').classList.add('show');
+  fetch(`${API}/files/${id}/analysis`)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+    .then(data => showAnalysis(item, data.analyses || {}))
+    .catch(err => {
+      document.getElementById('modalBody').textContent = `Failed to load analysis: ${err.message}`;
+    });
+}
+
+function showAnalysis(item, analyses) {
+  const entries = Object.entries(analyses).sort(([left], [right]) => left.localeCompare(right));
+  if (entries.length === 0) {
+    showToast('Analysis is no longer available', true);
+    closeModal();
+    return;
+  }
+
+  const content = entries.map(([promptName, analysis]) => {
+    const details = [
+      `Prompt: ${promptName}`,
+      `Status: ${analysis.status || 'unknown'}`,
+      analysis.backend ? `Model: ${analysis.backend}` : '',
+      analysis.duration_ms ? `Duration: ${formatDuration(analysis.duration_ms)}` : '',
+      analysis.description ? `\nDescription:\n${analysis.description}` : '',
+      analysis.text ? `\nExtracted text:\n${analysis.text}` : '',
+      analysis.error ? `\nError:\n${analysis.error}` : '',
+    ].filter(Boolean);
+    return details.join('\n');
+  }).join('\n\n---\n\n');
+
+  window._currentItem = { id: item.id, type: 'analysis', content };
+  document.getElementById('modalTitle').textContent = `Analysis · ${item.name}`;
+  document.getElementById('modalCopyContentBtn').style.display = 'inline-flex';
+  document.getElementById('modalBody').innerHTML = `<div class="analysis-detail">${entries.map(([promptName, analysis]) => {
+    const metadata = [analysis.backend, analysis.duration_ms ? formatDuration(analysis.duration_ms) : ''].filter(Boolean).join(' · ');
+    const description = analysis.description
+      ? `<p class="analysis-detail-description">${escapeHtml(analysis.description)}</p>` : '';
+    const text = analysis.text
+      ? `<pre class="analysis-detail-output">${escapeHtml(analysis.text)}</pre>` : '';
+    const error = analysis.error
+      ? `<p class="analysis-detail-error">${escapeHtml(analysis.error)}</p>` : '';
+    return `<section class="analysis-detail-entry">
+      <div class="analysis-detail-heading"><strong>${escapeHtml(promptName)}</strong><span class="badge">${escapeHtml(analysis.status || 'unknown')}</span></div>
+      ${metadata ? `<div class="analysis-detail-meta">${escapeHtml(metadata)}</div>` : ''}
+      ${description}${text}${error}
+    </section>`;
+  }).join('')}</div>`;
+  document.getElementById('modal').classList.add('show');
+}
+
 function openImageLightbox(src) {
   const lb = document.getElementById('imgLightbox');
   const img = document.getElementById('imgLightboxImg');
@@ -2470,6 +3316,18 @@ function closeModal() {
   document.getElementById('modal').classList.remove('show');
   document.getElementById('modalCopyContentBtn').style.display = 'none';
   currentModalId = null;
+}
+
+// --- Help modal ---
+function openHelpModal() {
+  const el = document.getElementById('helpModal');
+  el.hidden = false;
+  el.classList.add('show');
+}
+function closeHelpModal() {
+  const el = document.getElementById('helpModal');
+  el.hidden = true;
+  el.classList.remove('show');
 }
 
 // --- Settings ---
@@ -3059,29 +3917,44 @@ function renderVisionCompareResultHTML(result) {
 // Live matrix state used across SSE event handlers.
 let _matrixMeta = null; // {presets, image_types, prompts, total_cells}
 let _matrixCounts = {};  // preset → {done, success}
+let _matrixActiveCells = {}; // preset → {cell: {image, prompt}}
+let _matrixFailures = {}; // matrix cell id → failure details
+let _matrixSource = null;
+let _matrixRuntimeTimer = null;
 
-function testVisionMatrix() {
+function testVisionMatrix({ resume = false } = {}) {
+  if (_matrixSource) return;
   const btn = document.getElementById('testMatrixBtn');
   const resultDiv = document.getElementById('visionMatrixResult');
-  btn.textContent = 'Running matrix…';
+  btn.textContent = resume ? 'Reconnecting to matrix…' : 'Running matrix…';
   btn.disabled = true;
   resultDiv.style.display = 'block';
-  resultDiv.innerHTML = `<div style="border:1px solid var(--border);border-radius:8px;padding:16px;background:var(--bg-card);color:var(--text-muted);font-size:13px">Connecting…</div>`;
+  resultDiv.innerHTML = `<div style="border:1px solid var(--border);border-radius:8px;padding:16px;background:var(--bg-card);color:var(--text-muted);font-size:13px">${resume ? 'Reconnecting to the active matrix…' : 'Connecting…'}</div>`;
 
   _matrixMeta = null;
   _matrixCounts = {};
+  _matrixActiveCells = {};
+  _matrixFailures = {};
+  stopMatrixRuntimePolling();
 
   const es = new EventSource('/api/vision/test-matrix');
+  _matrixSource = es;
 
   es.addEventListener('start', e => {
     _matrixMeta = JSON.parse(e.data);
+    _matrixCounts = {};
+    _matrixActiveCells = {};
+    _matrixFailures = {};
     resultDiv.innerHTML = buildMatrixSkeleton(_matrixMeta);
     updateMatrixHeader(0, _matrixMeta.total_cells);
+    pollMatrixRuntime();
+    _matrixRuntimeTimer = setInterval(pollMatrixRuntime, 1000);
   });
 
   es.addEventListener('preset_start', e => {
     const d = JSON.parse(e.data);
     _matrixCounts[d.preset] = { done: 0, success: 0, total: (_matrixMeta?.image_types?.length || 5) * (_matrixMeta?.prompts?.length || 6) };
+    _matrixActiveCells[d.preset] = {};
     setPresetStatus(d.preset, `⟳ Loading ${escapeHtml(d.model)}…`, '#f0a500');
   });
 
@@ -3092,12 +3965,20 @@ function testVisionMatrix() {
 
   es.addEventListener('model_ready', e => {
     const d = JSON.parse(e.data);
-    setPresetStatus(d.preset, `✓ Model ready — running cells…`, 'var(--success)');
+    setPresetStatus(d.preset, `✓ Model ready in ${formatDuration(d.duration_ms)} — running tests…`, 'var(--success)');
   });
 
   es.addEventListener('preset_failed', e => {
     const d = JSON.parse(e.data);
     setPresetStatus(d.preset, `✗ ${escapeHtml(d.message)}`, '#f87171');
+  });
+
+  es.addEventListener('cell_start', e => {
+    const d = JSON.parse(e.data);
+    if (_matrixActiveCells[d.preset]) {
+      _matrixActiveCells[d.preset][d.cell] = { image: d.image, prompt: d.prompt };
+      setPresetStatus(d.preset, matrixRunningStatus(d.preset), 'var(--accent)');
+    }
   });
 
   es.addEventListener('cell_complete', e => {
@@ -3110,16 +3991,17 @@ function testVisionMatrix() {
         td.innerHTML = `<span style="color:var(--success)">✓</span> <span style="color:var(--text-muted);font-size:10px">${formatDuration(d.duration_ms)}</span>`;
         td.title = '';
       } else {
-        td.innerHTML = `<span style="color:#f87171" title="${escapeHtml(d.error || '')}">✗</span>`;
-        td.title = d.error || '';
+        _matrixFailures[cellId] = d;
+        td.innerHTML = `<button type="button" data-cell="${cellId}" onclick="showMatrixFailure(this.dataset.cell)" style="color:#f87171;background:none;border:0;padding:0;cursor:pointer;font:inherit" title="Show failure details">✗</button>`;
+        td.title = 'Show failure details';
       }
     }
     // Update counts.
     if (_matrixCounts[d.preset]) {
+      delete _matrixActiveCells[d.preset][d.cell];
       _matrixCounts[d.preset].done++;
       if (d.success) _matrixCounts[d.preset].success++;
-      const c = _matrixCounts[d.preset];
-      setPresetStatus(d.preset, `Running… ${c.done}/${c.total} cells (${c.success} passed)`, 'var(--accent)');
+      setPresetStatus(d.preset, matrixRunningStatus(d.preset, d), 'var(--accent)');
     }
     // Update global header.
     const totalDone = Object.values(_matrixCounts).reduce((s, c) => s + c.done, 0);
@@ -3134,14 +4016,39 @@ function testVisionMatrix() {
     setPresetStatus(d.preset, `${d.successes}/${d.total} passed`, color);
   });
 
+  es.addEventListener('model_unloading', e => {
+    const d = JSON.parse(e.data);
+    setPresetStatus(d.preset, 'Unloading model…', '#f0a500');
+  });
+
+  es.addEventListener('model_unloaded', e => {
+    const d = JSON.parse(e.data);
+    const total = d.total_duration_ms ? ` · total ${formatDuration(d.total_duration_ms)}` : '';
+    setPresetStatus(d.preset, (d.confirmed ? `Model unloaded (${d.status})` : `Unload request acknowledged (${d.status})`) + total, 'var(--success)');
+  });
+
+  es.addEventListener('model_unload_wait', e => {
+    const d = JSON.parse(e.data);
+    setPresetStatus(d.preset, `Waiting for memory release (${Math.ceil(d.timeout_ms / 1000)}s remaining)…`, '#f0a500');
+  });
+
+  es.addEventListener('model_unload_failed', e => {
+    const d = JSON.parse(e.data);
+    setPresetStatus(d.preset, `Unload request failed: ${escapeHtml(d.message)}`, '#f0a500');
+  });
+
   es.addEventListener('done', e => {
     const d = JSON.parse(e.data);
     const pct = d.total_cells > 0 ? Math.round(d.successes / d.total_cells * 100) : 0;
     updateMatrixHeader(d.successes, d.total_cells);
     const hdr = document.getElementById('matrixMainHeader');
     if (hdr) hdr.textContent = `Matrix complete — ${d.successes}/${d.total_cells} cells passed (${pct}%)`;
+    const benchmark = document.getElementById('matrixBenchmark');
+    if (benchmark) benchmark.innerHTML = renderMatrixBenchmark(d.results || []);
     btn.textContent = 'Test All Models ★';
     btn.disabled = false;
+    _matrixSource = null;
+    stopMatrixRuntimePolling();
     es.close();
   });
 
@@ -3152,6 +4059,8 @@ function testVisionMatrix() {
     } catch (_) {}
     btn.textContent = 'Test All Models ★';
     btn.disabled = false;
+    _matrixSource = null;
+    stopMatrixRuntimePolling();
     es.close();
   });
 
@@ -3159,8 +4068,49 @@ function testVisionMatrix() {
     if (es.readyState === EventSource.CLOSED) {
       btn.textContent = 'Test All Models ★';
       btn.disabled = false;
+      _matrixSource = null;
     }
   };
+}
+
+function stopMatrixRuntimePolling() {
+  if (_matrixRuntimeTimer) clearInterval(_matrixRuntimeTimer);
+  _matrixRuntimeTimer = null;
+}
+
+async function pollMatrixRuntime() {
+  try {
+    const response = await fetch('/api/vision/runtime');
+    if (!response.ok) return;
+    const { runtimes } = await response.json();
+    for (const [preset, runtime] of Object.entries(runtimes || {})) {
+      const target = document.getElementById('preset-runtime-' + CSS.escape(preset));
+      if (target) target.innerHTML = renderRuntimeStatus(runtime);
+    }
+  } catch (_) {}
+}
+
+function renderRuntimeStatus(runtime) {
+  if (runtime.state === 'unknown') return '<span style="color:var(--text-muted)">Runtime status unavailable</span>';
+  const models = runtime.models?.length
+    ? `Loaded: ${runtime.models.map(model => escapeHtml(model.name)).join(', ')}`
+    : 'No models loaded';
+  const system = runtime.system
+    ? ` · RAM ${runtime.system.memory_gb?.toFixed(1) || '—'} GiB · GPU ${runtime.system.gpu_percent?.toFixed(0) || '—'}% · VRAM ${runtime.system.vram_gb?.toFixed(1) || '—'} GiB`
+    : '';
+  const ollama = runtime.models?.[0]?.vram_bytes
+    ? ` · model VRAM ${(runtime.models[0].vram_bytes / 1073741824).toFixed(1)} GiB`
+    : '';
+  return `<span style="color:var(--text-muted)">${escapeHtml(runtime.provider)} · ${models}${system}${ollama}</span>`;
+}
+
+async function resumeMatrixIfRunning() {
+  if (_matrixSource) return;
+  try {
+    const resp = await fetch('/api/vision/test-matrix/status');
+    const status = await resp.json();
+    if (status.running) testVisionMatrix({ resume: true });
+  } catch (_) {}
 }
 
 function matrixCellId(preset, image, prompt) {
@@ -3174,6 +4124,8 @@ function buildMatrixSkeleton(meta) {
   html += `<div id="matrixMainHeader" style="font-weight:600;font-size:14px">Matrix running…</div>`;
   html += `<div id="matrixGlobalCount" style="font-size:12px;color:var(--text-muted)">0/${total_cells}</div>`;
   html += `</div>`;
+  html += `<div id="matrixFailureDetail" style="display:none;margin:0 0 12px;padding:10px;border:1px solid #7f1d1d;border-radius:6px;background:rgba(127,29,29,.14);font-size:12px"></div>`;
+  html += `<div id="matrixBenchmark"></div>`;
 
   for (const preset of presets) {
     html += `<div style="margin-bottom:16px">`;
@@ -3181,6 +4133,7 @@ function buildMatrixSkeleton(meta) {
     html += `<div style="font-weight:600;font-size:13px" id="preset-hdr-${CSS.escape(preset)}">${escapeHtml(preset)}</div>`;
     html += `<div id="preset-status-${CSS.escape(preset)}" style="font-size:12px;color:var(--text-muted)">Queued</div>`;
     html += `</div>`;
+    html += `<div id="preset-runtime-${CSS.escape(preset)}" style="font-size:11px;margin:-2px 0 6px">Checking runtime…</div>`;
     html += `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">`;
     html += `<thead><tr><th style="padding:4px 8px;text-align:left;border-bottom:1px solid var(--border);color:var(--text-muted);white-space:nowrap">image \\ prompt</th>`;
     for (const p of prompts) {
@@ -3201,6 +4154,32 @@ function buildMatrixSkeleton(meta) {
   return html;
 }
 
+function showMatrixFailure(cellId) {
+  const failure = _matrixFailures[cellId];
+  const panel = document.getElementById('matrixFailureDetail');
+  if (!failure || !panel) return;
+
+  const detail = failure.failure || {};
+  const runtime = detail.runtime || {};
+  const response = detail.http_status
+    ? `HTTP ${detail.http_status}${detail.http_status_text ? ` (${escapeHtml(detail.http_status_text)})` : ''}`
+    : 'No HTTP response received';
+  const headers = Object.entries(detail.response_headers || {})
+    .map(([name, value]) => `${escapeHtml(name)}: ${escapeHtml(value)}`)
+    .join(' · ');
+  const models = runtime.models?.length
+    ? runtime.models.map(model => escapeHtml(model.name)).join(', ')
+    : 'none reported';
+  const system = runtime.system
+    ? ` · RAM ${runtime.system.memory_gb?.toFixed(1) || '—'} GiB · GPU ${runtime.system.gpu_percent?.toFixed(0) || '—'}% · VRAM ${runtime.system.vram_gb?.toFixed(1) || '—'} GiB`
+    : '';
+  const captured = detail.captured_at ? new Date(detail.captured_at).toLocaleString() : 'unavailable';
+
+  panel.innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><strong style="color:#fca5a5">Failed: ${escapeHtml(failure.image)} × ${escapeHtml(failure.prompt)}</strong><div style="margin-top:4px;color:#fecaca">${escapeHtml(failure.error || 'No error message returned.')}</div><div style="margin-top:6px;color:var(--text-muted)">Response: ${response}${headers ? ` · ${headers}` : ''}</div><div style="margin-top:2px;color:var(--text-muted)">Runtime at ${escapeHtml(captured)}: ${escapeHtml(runtime.provider || 'unknown')} · loaded: ${models}${system}${runtime.error ? ` · ${escapeHtml(runtime.error)}` : ''}</div></div><button type="button" onclick="this.parentElement.parentElement.style.display='none'" style="background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:16px;line-height:1" title="Close">×</button></div>`;
+  panel.style.display = 'block';
+  panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
 function setPresetStatus(preset, msg, color) {
   const el = document.getElementById('preset-status-' + CSS.escape(preset));
   if (el) { el.textContent = msg; el.style.color = color || 'var(--text-muted)'; }
@@ -3214,6 +4193,62 @@ function updateMatrixHeader(successes, total, done) {
       ? `${done} run · ${successes} passed / ${total} total`
       : `${successes}/${total} (${pct}%)`;
   }
+}
+
+function matrixRunningStatus(preset, lastResult) {
+  const counts = _matrixCounts[preset];
+  if (!counts) return 'Running…';
+  const active = Object.values(_matrixActiveCells[preset] || {});
+  const activeText = active.length
+    ? ` · ${active.length} active: ${active.map(cell => `${cell.image} × ${cell.prompt}`).join(', ')}`
+    : '';
+  const lastText = lastResult
+    ? `Last ${lastResult.image} × ${lastResult.prompt} ${lastResult.success ? 'passed' : 'failed'} in ${formatDuration(lastResult.duration_ms)} · `
+    : '';
+  return `${lastText}${counts.done}/${counts.total} complete (${counts.success} passed)${activeText}`;
+}
+
+function renderMatrixBenchmark(results) {
+  const benchmarks = results.map(result => {
+    const durations = [];
+    for (const image of Object.values(result.cells || {})) {
+      for (const cell of Object.values(image || {})) {
+        if (cell.success && Number.isFinite(cell.duration_ms)) durations.push(cell.duration_ms);
+      }
+    }
+    durations.sort((a, b) => a - b);
+    const average = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : 0;
+    return {
+      preset: result.preset,
+      model: result.model,
+      successes: result.successes,
+      total: result.total_runs,
+      average,
+      median: matrixPercentile(durations, 0.5),
+      p95: matrixPercentile(durations, 0.95),
+    };
+  });
+  const maxAverage = Math.max(...benchmarks.map(benchmark => benchmark.average), 1);
+  let html = `<div style="margin:0 0 16px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">`;
+  html += `<div style="font-weight:600;font-size:13px;margin-bottom:3px">Speed benchmark</div>`;
+  html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Successful cells only · lower latency is better · p95 highlights slow outliers</div>`;
+  for (const benchmark of benchmarks) {
+    const successRate = benchmark.total ? Math.round(benchmark.successes / benchmark.total * 100) : 0;
+    const width = benchmark.average ? Math.max(4, benchmark.average / maxAverage * 100) : 0;
+    const latency = benchmark.average ? `avg ${formatDuration(benchmark.average)} · p50 ${formatDuration(benchmark.median)} · p95 ${formatDuration(benchmark.p95)}` : 'No successful cells';
+    html += `<div style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(110px,2fr) auto;gap:10px;align-items:center;margin:8px 0">`;
+    html += `<div style="min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(benchmark.preset)}</div><div style="font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(benchmark.model)}</div></div>`;
+    html += `<div><div style="height:7px;border-radius:4px;background:var(--bg-card);overflow:hidden"><div style="height:100%;width:${width}%;background:${successRate === 100 ? 'var(--success)' : successRate ? '#f0a500' : '#f87171'}"></div></div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">${latency}</div></div>`;
+    html += `<div style="font-size:11px;color:${successRate === 100 ? 'var(--success)' : successRate ? '#f0a500' : '#f87171'}">${benchmark.successes}/${benchmark.total} passed</div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function matrixPercentile(sortedValues, percentile) {
+  if (!sortedValues.length) return 0;
+  return sortedValues[Math.min(sortedValues.length - 1, Math.ceil(sortedValues.length * percentile) - 1)];
 }
 
 async function compareVisionPresets() {
@@ -3447,7 +4482,7 @@ async function deletePrompt(name) {
 
 function copyModalContent() {
   const item = window._currentItem;
-  if (!item || item.type !== 'text') return;
+  if (!item || !item.content) return;
   navigator.clipboard.writeText(item.content).then(() => {
     showToast(`Copied content (${item.content.length} chars)`);
   }).catch(() => showToast('Clipboard write failed', true));
@@ -3521,6 +4556,18 @@ function formatDuration(ms) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+// Format media duration from seconds (ffprobe format) as M:SS
+function formatMediaDuration(sec) {
+  if (!sec || sec <= 0) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    return `${h}:${(m % 60).toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 function formatExpiry(expires) {
   if (!expires || expires === '0001-01-01T00:00:00Z') return 'never';
   const d = new Date(expires);
@@ -3535,13 +4582,36 @@ function formatExpiry(expires) {
   return `${mins}m left`;
 }
 
+let clipboardLoadInFlight = false;
+let clipboardLoadedOnce = false;
+
+function setClipboardLoading(loading) {
+  const indicator = document.getElementById('itemsLoading');
+  const grid = document.getElementById('itemsGrid');
+  indicator.hidden = !loading || clipboardLoadedOnce;
+  grid.setAttribute('aria-busy', String(loading));
+}
+
 function loadItems() {
-  return fetch(`${API}/files?persistent=false`)
-    .then(r => r.json())
+  if (clipboardLoadInFlight) return Promise.resolve();
+  clipboardLoadInFlight = true;
+  setClipboardLoading(true);
+  return fetch(`${API}/files?persistent=false&analysis=summary`)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
     .then(data => {
       allClipboardItems = data.items || [];
       loadTextPreviews(allClipboardItems);
       renderClipboardGrid();
+      initAudioWaveforms(allClipboardItems);
+      initDocPreviews();
+      clipboardLoadedOnce = true;
+    })
+    .catch(err => {
+      showToast(`Failed to load clipboard: ${err.message}`, true);
+    })
+    .finally(() => {
+      clipboardLoadInFlight = false;
+      setClipboardLoading(false);
     });
 }
 
@@ -3598,8 +4668,10 @@ function loadPersistentItems() {
       });
 
       allPersistentItems = items;
-      loadTextPreviews(allPersistentItems);
       renderPersistentGrid();
+      loadTextPreviews(allPersistentItems);
+      initAudioWaveforms(allPersistentItems);
+      initDocPreviews();
     });
 }
 
@@ -3634,12 +4706,189 @@ function renderPersistentGrid() {
     : `${items.length} item${items.length !== 1 ? 's' : ''}`;
 }
 
+// --- Document previews (markdown, JSON, CSV) ---
+function initDocPreviews() {
+  document.querySelectorAll('.doc-preview[data-doc-id]').forEach(el => {
+    if (el.dataset.loaded) return;
+    el.dataset.loaded = '1';
+    const type = el.dataset.docType;
+    const url = el.dataset.docUrl;
+    fetch(url).then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(text => {
+      if (type === 'markdown') renderMarkdown(el, text);
+      else if (type === 'json') renderJSON(el, text);
+      else if (type === 'csv') renderCSV(el, text);
+    }).catch(() => { el.textContent = 'Failed to load'; });
+  });
+}
+
+function renderMarkdown(el, md) {
+  const lines = md.split('\n');
+  let html = '', inList = false, inCode = false, codeBuf = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim().startsWith('```')) {
+      if (inCode) { html += '<pre><code>' + escapeHtml(codeBuf) + '</code></pre>'; codeBuf = ''; inCode = false; }
+      else { if (inList) { html += '</ul>'; inList = false; } inCode = true; }
+      continue;
+    }
+    if (inCode) { codeBuf += line + '\n'; continue; }
+    if (/^#{1,6}\s/.test(line)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      const lvl = line.match(/^#+/)[0].length;
+      html += '<h' + Math.min(lvl,3) + '>' + _mdInline(line.replace(/^#+\s/, '')) + '</h' + Math.min(lvl,3) + '>';
+    } else if (/^[-*]\s/.test(line)) {
+      if (!inList) { html += '<ul style="margin:4px 0;padding-left:16px">'; inList = true; }
+      html += '<li>' + _mdInline(line.replace(/^[-*]\s/, '')) + '</li>';
+    } else if (/^---+$/.test(line.trim())) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">';
+    } else if (line.trim() === '') {
+      if (inList) { html += '</ul>'; inList = false; }
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<p>' + _mdInline(line) + '</p>';
+    }
+  }
+  if (inList) html += '</ul>';
+  if (inCode) html += '<pre><code>' + escapeHtml(codeBuf) + '</code></pre>';
+  el.innerHTML = html;
+}
+
+function _mdInline(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+}
+
+function renderJSON(el, text) {
+  try {
+    const obj = JSON.parse(text);
+    el.innerHTML = _jsonHighlight(JSON.stringify(obj, null, 2));
+  } catch(e) {
+    el.innerHTML = '<pre>' + escapeHtml(text) + '</pre>';
+  }
+}
+
+function _jsonHighlight(json) {
+  return escapeHtml(json)
+    .replace(/&quot;([^&]+)&quot;:/g, '<span class="json-key">&quot;$1&quot;</span>:')
+    .replace(/: &quot;([^&]*)&quot;/g, ': <span class="json-string">&quot;$1&quot;</span>')
+    .replace(/: (-?\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>')
+    .replace(/: null/g, ': <span class="json-null">null</span>');
+}
+
+function renderCSV(el, text) {
+  const sep = el.dataset.docType === 'tsv' ? '\t' : ',';
+  const rows = _parseCSV(text, sep);
+  if (rows.length === 0) { el.textContent = '(empty)'; return; }
+  const headers = rows[0];
+  let html = '<table><thead><tr>';
+  headers.forEach((h, i) => { html += '<th data-col="' + i + '">' + escapeHtml(h) + '</th>'; });
+  html += '</tr></thead><tbody>';
+  for (let r = 1; r < rows.length; r++) {
+    html += '<tr>';
+    for (let c = 0; c < headers.length; c++) { html += '<td>' + escapeHtml(rows[r][c] || '') + '</td>'; }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  el.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      const tbody = el.querySelector('tbody');
+      const trs = Array.from(tbody.querySelectorAll('tr'));
+      trs.sort((a, b) => {
+        const av = (a.children[col] || {}).textContent || '';
+        const bv = (b.children[col] || {}).textContent || '';
+        const an = parseFloat(av), bn = parseFloat(bv);
+        if (!isNaN(an) && !isNaN(bn)) return an - bn;
+        return av.localeCompare(bv);
+      });
+      if (th.dataset.dir === 'asc') { trs.reverse(); th.dataset.dir = 'desc'; } else { th.dataset.dir = 'asc'; }
+      trs.forEach(tr => tbody.appendChild(tr));
+    });
+  });
+}
+
+function _parseCSV(text, sep) {
+  const rows = [];
+  let row = [], field = '', inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; } else { inQuote = false; }
+      } else { field += ch; }
+    } else {
+      if (ch === '"') { inQuote = true; }
+      else if (ch === sep) { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch === '\r') { /* skip */ }
+      else { field += ch; }
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
 function renderItemCard(item, isPersistent) {
+  const linkPath = itemLinkPath(item.id, item.name);
+  const downloadPath = `${linkPath}?download=1`;
   let thumb = '';
   if (item.type === 'text') {
-    thumb = `<div class="item-thumb"><div class="code-preview" id="preview-${item.id}">Loading...</div></div>`;
+    thumb = `<div class="item-thumb"><div class="code-preview" data-preview-id="${item.id}">Loading...</div></div>`;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
-    thumb = `<div class="item-thumb"><img src="/f/${item.id}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('/f/${item.id}')"></div>`;
+    thumb = `<div class="item-thumb"><img src="${linkPath}" alt="${escapeHtml(item.name)}" loading="lazy" onclick="openImageLightbox('${linkPath}')"></div>`;
+  } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
+    const mi = item.media_info;
+    let infoText = formatSize(item.size || 0);
+    if (mi) {
+      const parts = [formatMediaDuration(mi.duration)];
+      if (mi.channels) parts.push(mi.channels === 1 ? 'mono' : `${mi.channels}ch`);
+      if (mi.sample_rate) parts.push(`${(mi.sample_rate / 1000).toFixed(1)}kHz`);
+      if (mi.bit_rate) parts.push(`${Math.round(mi.bit_rate / 1000)}kbps`);
+      if (mi.codec) parts.push(mi.codec);
+      infoText = parts.join(' · ');
+    }
+    thumb = `<div class="item-thumb"><div class="audio-player" data-audio-id="${item.id}" data-audio-url="${linkPath}" data-audio-size="${item.size || 0}">
+      <canvas class="audio-waveform" data-audio-id="${item.id}"></canvas>
+      <div class="audio-controls">
+        <button class="audio-play-btn" data-audio-id="${item.id}" onclick="toggleAudioPlay('${item.id}', '${linkPath}')">${ICONS.play}</button>
+        <span class="audio-time" data-audio-id="${item.id}">${mi ? formatMediaDuration(mi.duration) : '--:--'}</span>
+      </div>
+      <div class="audio-info" data-audio-id="${item.id}">${infoText}</div>
+    </div></div>`;
+    // Show loading indicator if no server-side metadata (needs client decode)
+    if (!mi) _audioLoadingIds.add(item.id);
+  } else if (item.mime_type && item.mime_type.startsWith('video/')) {
+    const mi = item.media_info;
+    let videoInfo = '';
+    if (mi) {
+      const parts = [];
+      if (mi.width && mi.height) parts.push(`${mi.width}x${mi.height}`);
+      if (mi.duration) parts.push(formatMediaDuration(mi.duration));
+      if (mi.codec) parts.push(mi.codec);
+      if (mi.bit_rate) parts.push(`${Math.round(mi.bit_rate / 1000)}kbps`);
+      videoInfo = parts.join(' · ');
+    }
+    thumb = `<div class="item-thumb" style="position:relative">
+      <video src="${linkPath}" controls preload="metadata" loading="lazy" style="width:100%;height:100%;object-fit:contain"></video>
+      ${videoInfo ? `<div class="video-info-overlay">${videoInfo}</div>` : ''}
+    </div>`;
+  } else if (item.mime_type === 'application/pdf') {
+    thumb = `<div class="item-thumb"><iframe src="${linkPath}" style="width:100%;height:100%;border:none" loading="lazy" title="${escapeHtml(item.name)}"></iframe></div>`;
+  } else if (item.mime_type === 'text/markdown' || /\.(md|markdown)$/i.test(item.name)) {
+    thumb = `<div class="item-thumb"><div class="doc-preview" data-doc-type="markdown" data-doc-id="${item.id}" data-doc-url="${linkPath}">Loading…</div></div>`;
+  } else if (item.mime_type === 'application/json' || /\.json$/i.test(item.name)) {
+    thumb = `<div class="item-thumb"><div class="doc-preview" data-doc-type="json" data-doc-id="${item.id}" data-doc-url="${linkPath}">Loading…</div></div>`;
+  } else if (item.mime_type === 'text/csv' || /\.(csv|tsv)$/i.test(item.name)) {
+    thumb = `<div class="item-thumb"><div class="doc-preview" data-doc-type="csv" data-doc-id="${item.id}" data-doc-url="${linkPath}">Loading…</div></div>`;
   } else {
     thumb = `<div class="item-thumb"><div class="file-icon">📄</div></div>`;
   }
@@ -3659,57 +4908,81 @@ function renderItemCard(item, isPersistent) {
       <button class="icon-btn" data-tooltip="Copy content to clipboard" onclick="copyTextContent('${item.id}')">${ICONS.copy}</button>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'text', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
-      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyTextUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyTextUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   } else if (item.mime_type && item.mime_type.startsWith('image/')) {
     actions = `
-      <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
       <button class="icon-btn" data-tooltip="Copy image to clipboard" onclick="copyImageToClipboard('${item.id}')">${ICONS.image}</button>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
       <button class="icon-btn" data-tooltip="Re-analyze with vision model" onclick="reanalyzeImage('${item.id}')">${ICONS.scan}</button>
-      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  } else if (item.mime_type && item.mime_type.startsWith('audio/')) {
+    actions = `
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
+      <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
+    `;
+  } else if (item.mime_type && item.mime_type.startsWith('video/')) {
+    actions = `
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
+      <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
+      ${pinBtn}
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   } else {
     actions = `
-      <a class="icon-btn" data-tooltip="Open" href="/f/${item.id}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Open" href="${linkPath}" target="_blank">${ICONS.external}</a>
+      <a class="icon-btn" data-tooltip="Download" href="${downloadPath}" download="${escapeHtml(item.name)}">${ICONS.download}</a>
       <button class="icon-btn" data-tooltip="Share" onclick="shareItem('${item.id}', 'file', '${escapeHtml(item.name)}')">${ICONS.share}</button>
       ${pinBtn}
-      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}')">${ICONS.link}</button>
+      <button class="icon-btn" data-tooltip="Edit MIME type" onclick="editMimeType('${item.id}', '${escapeHtml(item.mime_type)}', '${escapeHtml(item.name)}')">${ICONS.tag}</button>
+      <button class="icon-btn" data-tooltip="Copy URL" onclick="copyUrl('${item.id}', '${escapeHtml(item.name)}')">${ICONS.link}</button>
       <button class="icon-btn danger" data-tooltip="Delete" onclick="deleteItem('${item.id}', '${escapeHtml(item.name)}')">${ICONS.trash}</button>
     `;
   }
 
-  // Vision analysis section (for images)
+  // Vision output should not turn the grid into a diagnostic console.
   let analysisHTML = '';
   if (item.type === 'file' && item.mime_type && item.mime_type.startsWith('image/')) {
     const analyses = item.analyses || {};
-    const promptNames = Object.keys(analyses);
-    const hasPending = promptNames.some(n => analyses[n].status === 'pending');
-
-    if (promptNames.length > 0) {
-      analysisHTML = `<div class="item-analysis">`;
-      for (const pn of promptNames.sort()) {
-        const a = analyses[pn];
-        const durBadge = a.duration_ms ? `<span class="badge" title="Time to analyze">${formatDuration(a.duration_ms)}</span>` : '';
-        if (a.status === 'pending') {
-          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] Analyzing...</div><div class="item-analysis-pending">Vision model processing image...</div>`;
-        } else if (a.status === 'complete') {
-          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] <span class="badge">${a.backend || ''}</span>${durBadge}</div>`;
-          if (a.description) analysisHTML += `<div class="item-analysis-desc">${escapeHtml(a.description)}</div>`;
-          if (a.text) analysisHTML += `<div class="item-analysis-text">${escapeHtml(a.text)}</div>`;
-        } else if (a.status === 'failed') {
-          analysisHTML += `<div class="item-analysis-label">${ICONS.scan} [${pn}] Failed${durBadge}</div><div class="item-analysis-error">${escapeHtml(a.error || 'Unknown error')}</div>`;
-        }
+    const results = Object.values(analyses);
+    const complete = results.filter(analysis => analysis.status === 'complete');
+    const pending = results.filter(analysis => analysis.status === 'pending');
+    const failed = results.filter(analysis => analysis.status === 'failed');
+    const totalDuration = complete.reduce((sum, analysis) => sum + (analysis.duration_ms || 0), 0);
+    if (results.length > 0) {
+      let state = `${complete.length} analysis${complete.length === 1 ? '' : 'es'} ready`;
+      let stateClass = '';
+      if (pending.length > 0) {
+        state = `${pending.length} analysis${pending.length === 1 ? '' : 'es'} running`;
+        stateClass = ' analysis-summary-pending';
+      } else if (complete.length === 0 && failed.length > 0) {
+        state = 'Analysis failed';
+        stateClass = ' analysis-summary-failed';
       }
-      analysisHTML += `</div>`;
+      const meta = totalDuration ? formatDuration(totalDuration) : `${results.length} result${results.length === 1 ? '' : 's'}`;
+      analysisHTML = `<button type="button" class="analysis-summary${stateClass}" onclick="viewAnalysis('${item.id}')">
+        ${ICONS.scan}<span class="analysis-summary-status">${state}</span><span class="analysis-summary-meta">${meta}</span>
+      </button>`;
     }
   }
 
   return `
-    <div class="item-card">
+    <div class="item-card" data-item-id="${item.id}">
       ${thumb}
       <div class="item-info">
         <div class="item-name">${escapeHtml(item.name)}</div>
@@ -3731,15 +5004,15 @@ function loadTextPreviews(items) {
     fetch(`${API}/files/${item.id}`)
       .then(r => r.json())
       .then(data => {
-        const el = document.getElementById(`preview-${item.id}`);
+        const previews = document.querySelectorAll(`[data-preview-id="${item.id}"]`);
         if (data.error) {
-          if (el) { el.textContent = '(file missing)'; el.style.opacity = '0.4'; }
+          previews.forEach(el => { el.textContent = '(file missing)'; el.style.opacity = '0.4'; });
           return;
         }
         // Cache the full content so search can match on paste content, not
         // just the truncated preview.
         textContentCache[item.id] = data.content || '';
-        if (el) {
+        previews.forEach(el => {
           const preview = data.content.substring(0, 200);
           const lang = detectLang(item.name);
           if (window.hljs) {
@@ -3752,15 +5025,17 @@ function loadTextPreviews(items) {
           } else {
             el.textContent = preview;
           }
-        }
+        });
         // If the user is actively searching, re-filter now that this item's
         // content is indexed (it may newly match or unmatch the query).
         if (document.getElementById('clipboardSearch')?.value) renderClipboardGrid();
         if (document.getElementById('persistentSearch')?.value) renderPersistentGrid();
       })
       .catch(() => {
-        const el = document.getElementById(`preview-${item.id}`);
-        if (el) { el.textContent = '(error loading)'; el.style.opacity = '0.4'; }
+        document.querySelectorAll(`[data-preview-id="${item.id}"]`).forEach(el => {
+          el.textContent = '(error loading)';
+          el.style.opacity = '0.4';
+        });
       });
   });
 }
@@ -3911,7 +5186,7 @@ setInterval(() => {
 
 // Fast refresh (5s) when there are pending vision analyses
 setInterval(() => {
-  const pending = document.querySelectorAll('.item-analysis-pending');
+  const pending = document.querySelectorAll('.analysis-summary-pending');
   if (pending.length > 0) {
     loadItems();
     if (document.getElementById('tab-persistent').classList.contains('active')) {
@@ -3920,8 +5195,12 @@ setInterval(() => {
   }
 }, 5000);
 
-// Initial load
-loadItems();
+setInterval(() => {
+  if (document.getElementById('logDrawer').classList.contains('open')) loadLogs();
+}, 2000);
+
+// Initial load is selected from the URL so a refresh keeps the current section.
+activateTab(tabFromLocation());
 
 // --- Pull to refresh ---
 (function() {
@@ -3929,9 +5208,10 @@ loadItems();
   let pulling = false;
   const indicator = document.getElementById('pullIndicator');
   const threshold = 70;
+  const activeContent = () => document.querySelector('.tab-content.active');
 
   document.addEventListener('touchstart', e => {
-    if (window.scrollY <= 0) {
+    if (activeContent()?.scrollTop <= 0) {
       pullStart = e.touches[0].clientY;
       pulling = true;
     }
@@ -3940,7 +5220,7 @@ loadItems();
   document.addEventListener('touchmove', e => {
     if (!pulling) return;
     const delta = e.touches[0].clientY - pullStart;
-    if (delta > 0 && window.scrollY <= 0) {
+    if (delta > 0 && activeContent()?.scrollTop <= 0) {
       indicator.classList.add('show');
       if (delta >= threshold) {
         indicator.classList.add('ready');

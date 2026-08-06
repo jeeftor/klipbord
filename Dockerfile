@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 go build -o klipbord -ldflags="-s -w -X main.version=${VERSION
 # Final stage
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates ffmpeg
 
 COPY --from=builder /build/klipbord /klipbord
 

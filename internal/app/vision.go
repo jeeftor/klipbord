@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -22,14 +22,14 @@ type visionChatRequest struct {
 }
 
 type visionChatMessage struct {
-	Role    string           `json:"role"`
+	Role    string          `json:"role"`
 	Content []visionContent `json:"content"`
 }
 
 type visionContent struct {
-	Type      string          `json:"type"`
-	Text      string          `json:"text,omitempty"`
-	ImageURL  *visionImageURL `json:"image_url,omitempty"`
+	Type     string          `json:"type"`
+	Text     string          `json:"text,omitempty"`
+	ImageURL *visionImageURL `json:"image_url,omitempty"`
 }
 
 type visionImageURL struct {
@@ -49,9 +49,10 @@ type visionChatResponse struct {
 }
 
 type visionAnalysisResult struct {
-	ImageType   string `json:"image_type"`
-	Text        string `json:"text"`
-	Description string `json:"description"`
+	ImageType   string          `json:"image_type"`
+	Text        string          `json:"text"`
+	Description string          `json:"description"`
+	Evidence    *VisualEvidence `json:"evidence,omitempty"`
 }
 
 // classifyPrompt is a minimal single-word classification prompt.
@@ -175,6 +176,9 @@ func analyzeImageTwoPass(itemID string) {
 
 	// Pick the best matching prompt; fall back to "default" if no match
 	promptName := imageType
+	if imageType == "screenshot" {
+		promptName = "ui"
+	}
 	prompt, ok := getPrompt(promptName)
 	if !ok {
 		promptName = "default"
@@ -218,6 +222,7 @@ func analyzeImageTwoPass(itemID string) {
 			Status:      "complete",
 			Text:        result.Text,
 			Description: result.Description,
+			Evidence:    result.Evidence,
 			Backend:     visionModel,
 			PromptName:  promptName,
 			ProcessedAt: time.Now(),
@@ -231,7 +236,6 @@ func analyzeImageTwoPass(itemID string) {
 func analyzeImageAsync(itemID string) {
 	analyzeImageTwoPass(itemID)
 }
-
 
 // scoreVisionResult computes a simple 0-100 quality score for a vision analysis result
 func scoreVisionResult(result *visionAnalysisResult, expectedType string) float64 {
@@ -457,6 +461,7 @@ func apiAnalyzeHandler(w http.ResponseWriter, r *http.Request) {
 			Status:      "complete",
 			Text:        result.Text,
 			Description: result.Description,
+			Evidence:    result.Evidence,
 			Backend:     visionModel,
 			PromptName:  promptName,
 			ProcessedAt: time.Now(),

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	_ "embed"
@@ -132,18 +132,18 @@ func apiVisionTestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]interface{}{
-		"success":      true,
-		"message":      "Vision analysis completed",
-		"latency":      latency.Round(time.Millisecond).String(),
-		"preset":       preset.Name,
-		"model":        preset.Model,
-		"endpoint":     preset.Endpoint,
-		"image_type":   result.ImageType,
-		"prompt_used":  promptName,
-		"sample_type":  imageType,
-		"text":         result.Text,
-		"description":  result.Description,
-		"image_b64":    base64.StdEncoding.EncodeToString(sampleData),
+		"success":     true,
+		"message":     "Vision analysis completed",
+		"latency":     latency.Round(time.Millisecond).String(),
+		"preset":      preset.Name,
+		"model":       preset.Model,
+		"endpoint":    preset.Endpoint,
+		"image_type":  result.ImageType,
+		"prompt_used": promptName,
+		"sample_type": imageType,
+		"text":        result.Text,
+		"description": result.Description,
+		"image_b64":   base64.StdEncoding.EncodeToString(sampleData),
 	})
 }
 

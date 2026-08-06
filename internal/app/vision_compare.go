@@ -1,9 +1,10 @@
-package main
+package app
 
 import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,31 +19,71 @@ import (
 
 // PresetResult is the analysis result from one preset
 type PresetResult struct {
-	Preset      string                 `json:"preset"`
-	Model       string                 `json:"model"`
-	Endpoint    string                 `json:"endpoint"`
-	Success     bool                   `json:"success"`
-	Error       string                 `json:"error,omitempty"`
-	Latency     string                 `json:"latency"`
-	ImageType   string                 `json:"image_type,omitempty"`
-	Text        string                 `json:"text,omitempty"`
-	Description string                 `json:"description,omitempty"`
-	Score       float64                `json:"score"`
-	Rank        int                    `json:"rank"`
-	JudgeRationale string              `json:"judge_rationale,omitempty"`
+	Preset          string            `json:"preset"`
+	Model           string            `json:"model"`
+	Endpoint        string            `json:"endpoint"`
+	Success         bool              `json:"success"`
+	Error           string            `json:"error,omitempty"`
+	Latency         string            `json:"latency"`
+	ImageType       string            `json:"image_type,omitempty"`
+	Text            string            `json:"text,omitempty"`
+	Description     string            `json:"description,omitempty"`
+	Score           float64           `json:"score"`
+	Rank            int               `json:"rank"`
+	JudgeRationale  string            `json:"judge_rationale,omitempty"`
+	HTTPStatus      int               `json:"http_status,omitempty"`
+	HTTPStatusText  string            `json:"http_status_text,omitempty"`
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
+}
+
+// visionRequestFailure preserves safe HTTP response details for a failed vision request.
+type visionRequestFailure struct {
+	StatusCode int
+	Status     string
+	Body       string
+	Headers    map[string]string
+}
+
+func (e *visionRequestFailure) Error() string {
+	if e.Body != "" {
+		return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Body)
+	}
+	return fmt.Sprintf("HTTP %d: %s", e.StatusCode, e.Status)
+}
+
+func responseDebugHeaders(headers http.Header) map[string]string {
+	allowed := []string{"Server", "X-Request-Id", "X-Correlation-Id", "Retry-After"}
+	result := make(map[string]string)
+	for _, name := range allowed {
+		if value := headers.Get(name); value != "" {
+			result[name] = value
+		}
+	}
+	return result
+}
+
+func applyVisionRequestFailure(result *PresetResult, err error) bool {
+	var failure *visionRequestFailure
+	if !errors.As(err, &failure) {
+		return false
+	}
+	result.HTTPStatus = failure.StatusCode
+	result.HTTPStatusText = failure.Status
+	result.ResponseHeaders = failure.Headers
+	return true
 }
 
 // CompareResult is the full comparison response
 type CompareResult struct {
-	TotalPresets  int            `json:"total_presets"`
-	SuccessCount  int            `json:"success_count"`
-	JudgeUsed     string         `json:"judge_used"`
-	JudgeModel    string         `json:"judge_model,omitempty"`
-	Results       []PresetResult `json:"results"`
-	Winner        string         `json:"winner,omitempty"`
-	ImageB64      string         `json:"image_b64,omitempty"`
-	PromptUsed    string         `json:"prompt_used"`
-	SampleType    string         `json:"sample_type,omitempty"`
+	TotalPresets int            `json:"total_presets"`
+	SuccessCount int            `json:"success_count"`
+	JudgeUsed    string         `json:"judge_used"`
+	JudgeModel   string         `json:"judge_model,omitempty"`
+	Results      []PresetResult `json:"results"`
+	Winner       string         `json:"winner,omitempty"`
+	ImageB64     string         `json:"image_b64,omitempty"`
+	PromptUsed   string         `json:"prompt_used"`
+	SampleType   string         `json:"sample_type,omitempty"`
 }
 
 // apiVisionCompareHandler runs an image through all presets and ranks results
@@ -263,7 +304,7 @@ func analyzeWithPreset(itemID string, preset *VisionPreset, promptText string) P
 		req.Header.Set("Authorization", "Bearer "+preset.APIKey)
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: visionRequestTimeout}
 	resp, err := client.Do(req)
 	result.Latency = time.Since(start).Round(time.Millisecond).String()
 
@@ -275,7 +316,14 @@ func analyzeWithPreset(itemID string, preset *VisionPreset, promptText string) P
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		result.Error = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		failure := &visionRequestFailure{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       strings.TrimSpace(string(body)),
+			Headers:    responseDebugHeaders(resp.Header),
+		}
+		applyVisionRequestFailure(&result, failure)
+		result.Error = failure.Error()
 		return result
 	}
 
@@ -437,8 +485,8 @@ func judgeResultsPairwise(imgData []byte, results []PresetResult, judge *VisionP
 
 	// Parse the ranking
 	var rankings []struct {
-		Preset   string `json:"preset"`
-		Rank     int    `json:"rank"`
+		Preset    string `json:"preset"`
+		Rank      int    `json:"rank"`
 		Rationale string `json:"rationale"`
 	}
 	if err := json.Unmarshal([]byte(content), &rankings); err != nil {
