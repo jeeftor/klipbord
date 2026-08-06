@@ -91,6 +91,40 @@ kb login --url https://klipbord.example.com --method oidc \
   --client-id kb-cli
 ```
 
+### Auto-discovery (Authentik forward_auth)
+
+When Klipbord is behind Authentik forward_auth with CLI detection
+configured in Caddy, `kb login` auto-discovers the OIDC settings —
+no `--method`, `--issuer`, or `--client-id` flags needed:
+
+```bash
+$ kb login
+Klipbord server URL [https://klipbord.example.com]:  (press enter)
+Detected auth method: oidc
+Open https://auth.example.com/device?code=810392209 and complete login using code 810392209
+Waiting for authorization...
+Logged in. Profile "default" is ready.
+```
+
+The CLI sends `User-Agent: klipbord-cli/<version>` on all requests.
+Caddy detects this and, when forward_auth rejects an unauthenticated
+request, returns a `401` with `X-OIDC-Issuer`, `X-OIDC-Client-ID`, and
+`X-OIDC-Scopes` headers instead of a `302` redirect. The CLI reads
+these headers to auto-configure the device code flow.
+
+See `caddy/flows.md` (Pattern F) in the homelab repo for the full
+Caddy and Authentik configuration details.
+
+### Status and profiles
+
+```bash
+$ kb status
+Profile: default
+Server: https://klipbord.example.com
+Method: oidc
+Status: logged in
+```
+
 Other supported methods are `bearer`, `headers`, and `none` for loopback-only
 development. `headers` accepts repeated header names and securely prompts for
 their values; `oidc` uses OpenID Connect discovery and refresh tokens.
