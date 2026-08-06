@@ -1,3 +1,6 @@
 .playwright-cli/
 .gocache/
+.gomodcache/
+.gopath/
+/kb
 output/

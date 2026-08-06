@@ -1339,9 +1339,13 @@ body {
   <div class="main">
     <!-- Unified input box -->
     <div class="unified-input" id="unifiedInput">
-      <textarea class="unified-input-textarea" id="textInput" placeholder="Type or paste text here... (Ctrl+Enter to submit)&#10;&#10;Or click below to upload files · Ctrl+V to paste image · drag & drop"></textarea>
+      <textarea class="unified-input-textarea" id="textInput" placeholder="Type or paste text here... (Ctrl+Enter to submit)&#10;&#10;Or browse files below · Ctrl+V to paste image · drag & drop"></textarea>
       <div class="unified-input-bar">
-        <span class="bar-hint"><strong>Ctrl+V</strong> paste · drag & drop · click to browse</span>
+        <span class="bar-hint"><strong>Ctrl+V</strong> paste · drag & drop</span>
+        <button class="btn btn-secondary camera-btn" type="button" onclick="document.getElementById('fileInput').click()" aria-label="Browse files to upload">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Browse files
+        </button>
         <input type="text" class="text-name" id="textName" placeholder="filename (optional)">
         <button class="btn btn-secondary camera-btn" onclick="openCamera(event)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
