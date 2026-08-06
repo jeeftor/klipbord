@@ -367,6 +367,10 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 
 ## Changelog
 
+### v2.12.1
+
+- **Reliable CLI releases**: The binary publishing job now checks out the tagged source before creating the GitHub release and uploading its verified archives.
+
 ### v2.12.0
 
 - **`kb` command-line client**: Upload files or piped text, manage items, and authenticate through Cloudflare Access service tokens, bearer tokens, custom headers, or OIDC device login. Release assets now include macOS, Linux, and Windows `kb` binaries.
