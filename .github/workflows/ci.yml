@@ -189,7 +189,7 @@ jobs:
   # the hashes output on tag pushes. The reusable workflow always runs but
   # receives empty hashes on non-tag pushes (which SLSA handles as a no-op).
   provenance-kb-guard:
-    if: github.event_name == 'push'
+    if: always() && github.event_name == 'push'
     needs: release-kb
     runs-on: ubuntu-latest
     outputs:
@@ -212,7 +212,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_binary_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: "${{ needs.provenance-kb-guard.outputs.hashes }}"
       upload-assets: true
