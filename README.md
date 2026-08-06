@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/jeeftor/klipbord/master/icon.svg" width="120" alt="Klipbord logo" />
+<img src="https://raw.githubusercontent.com/jeeftor/klipbord/master/internal/webassets/static/icon.svg" width="120" alt="Klipbord logo" />
 
 # Klipbord
 
@@ -31,8 +31,11 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 | **Client-side Search** | Search filenames, vision OCR text, and paste content across both tabs |
 | **Auto-expire** | Configurable TTL per item (1h, 1d, 7d, 30d, never) |
 | **Persistent Pinning** | Mark items as persistent to exempt from expiry |
+| **Smart MIME Detection** | Auto-detects file type from extension + content sniffing when client sends a generic type |
+| **Short Links** | Shareable `/{id}/{filename}` URLs with auto-redirect, `?download=1`, and `?direct=1` |
+| **Audio Waveform** | In-browser waveform player with play/pause, seek, and progress for MP3/WAV/OGG/FLAC |
 | **OpenAPI 3.0** | Machine-readable spec at `/api/openapi.json` + Swagger UI |
-| **Single Go binary** | No runtime deps. 103 tests, ~58% coverage |
+| **Single Go binary** | No runtime dependencies; built-in race-enabled test and static-analysis checks |
 
 ---
 
@@ -59,8 +62,10 @@ Then open `http://localhost:8080` — drop a file, paste an image, share a snipp
 | `PORT` | `8080` | HTTP port |
 | `DATA_DIR` | `/data` | Storage directory |
 | `BASE_URL` | `http://localhost:8080` | Public URL for generating links |
-| `MAX_UPLOAD_MB` | `100` | Max upload size in MB |
+| `MAX_UPLOAD_MB` | `2048` | Max upload size in MB |
 | `VISION_ENABLED` | `true` | Enable automatic image analysis on upload |
+| `VISION_REQUEST_TIMEOUT` | `2m` | Maximum time for each matrix inference request |
+| `VISION_UNLOAD_TIMEOUT` | `2m` | Maximum time to wait for unload and observed memory release |
 | `VISION_ENDPOINT` | *(see presets)* | OpenAI-compatible vision LLM endpoint (overrides UI config) |
 | `VISION_MODEL` | *(see presets)* | Vision model name to use (overrides UI config) |
 
@@ -129,7 +134,7 @@ curl /api/files/{id}   # both results returned in analyses field
 
 ```bash
 curl /api/files                                          # list all
-curl -F 'file=@screenshot.png' -F 'ttl=7d' /api/upload  # upload file
+curl -F 'file=@screenshot.png' -F 'ttl=7d' /api/upload  # upload file (MIME auto-detected)
 curl /api/files/{id} -o file.png                         # download
 curl -X POST -H 'Content-Type: application/json' \
   -d '{"content":"hello","name":"note.txt","ttl":"7d"}' /api/text   # create text snippet
@@ -137,6 +142,8 @@ curl /api/text/{id}                                      # get raw text
 curl -X DELETE /api/files/{id}                           # delete
 curl -X PATCH -H 'Content-Type: application/json' \
   -d '{"persistent":true}' /api/files/{id}              # pin/unpin
+curl -X PATCH -H 'Content-Type: application/json' \
+  -d '{"mime_type":"image/gif"}' /api/files/{id}        # fix MIME type
 ```
 
 </details>
@@ -198,7 +205,7 @@ curl -X DELETE /api/prompts/{name}                       # delete (custom only)
 
 ```bash
 curl /api/health      # → {"status":"ok"}
-curl /api/version     # → {"version":"v1.14.0"}
+curl /api/version     # → {"version":"vX.Y.Z"}
 curl /api/openapi.json
 ```
 
@@ -227,6 +234,7 @@ curl /api/openapi.json
 | `persist_file` | Pin or unpin an item |
 | `describe_image` | Get vision analysis for an image |
 | `analyze_image` | Trigger/re-trigger vision analysis |
+| `inspect_image` | Ask a focused visual question and return structured visible evidence |
 | `list_prompts` | List all available vision prompts |
 | `create_prompt` | Create a new vision prompt template |
 | `update_prompt` | Update an existing prompt |
@@ -253,6 +261,9 @@ curl /api/openapi.json
 // Trigger re-analysis
 {"name": "analyze_image", "arguments": {"id": "abc123", "prompt": "code"}}
 
+// Ask a question with UI evidence tailored for a text-only agent
+{"name": "inspect_image", "arguments": {"id": "abc123", "mode": "ui", "question": "Which tab is selected, and is the clipboard still loading?"}}
+
 // Compare all presets on a sample image
 {"name": "compare_vision", "arguments": {"image_type": "terminal"}}
 
@@ -270,9 +281,28 @@ curl /api/openapi.json
 ## Direct Links
 
 ```
-https://klipbord.example.com/f/{id}   # file
-https://klipbord.example.com/t/{id}   # text snippet
+https://klipbord.example.com/{id}/{filename}     # canonical share link (filename visible in URL)
+https://klipbord.example.com/{id}                # redirects to /{id}/{filename}
+https://klipbord.example.com/{id}?direct=1       # serves inline, no redirect (curl -O friendly)
+https://klipbord.example.com/{id}?download=1     # redirects to named URL, forces download
+https://klipbord.example.com/link/{id}           # legacy form (still works)
 ```
+
+---
+
+## Web UI Routes
+
+Each UI section has a stable URL, so it remains selected after a refresh and can be bookmarked.
+
+| Route | UI section |
+|-------|------------|
+| `/clip` | Clipboard items and upload controls |
+| `/persist` | Persistent items |
+| `/config` | Vision configuration |
+| `/mcp-web` | MCP setup and tool reference |
+| `/rest-web` | REST API reference |
+
+`/` redirects to `/clip`. The browser UI routes are intentionally separate from the machine interfaces: REST remains under `/api/...`, MCP remains at `/mcp`, and direct item links use the short form `/{id}` (with `/link/{id}` as a legacy alias).
 
 ---
 
@@ -289,6 +319,41 @@ https://klipbord.example.com/t/{id}   # text snippet
 
 ---
 
+## Changelog
+
+### v2.9.0
+
+- **Media metadata via ffprobe**: Audio and video uploads are probed with `ffprobe` (included in Docker image) to extract codec, duration, bitrate, sample rate, channels, and resolution. Metadata is stored in the item record and displayed immediately on page load — no need to play the file first.
+- **Waveform fix**: Audio waveforms now render on page load using `OfflineAudioContext` (no user gesture required). Previously the waveform only appeared after clicking play due to browser autoplay policy suspending regular `AudioContext`.
+- **Video info overlay**: Video cards show resolution, duration, codec, and bitrate as an overlay on the video player.
+
+### v2.8.0
+
+- **Telegram notifications**: CI sends release announcements and CI failure alerts to a Telegram channel via bot. Requires `TELEGRAM_TOKEN` and `TELEGRAM_TO` repo secrets.
+- **Canonical audio MIME types**: Registers `.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`, `.aac`, `.opus` at init time via `mime.AddExtensionType` so detection is consistent across Linux and macOS.
+
+### v2.7.0
+
+- **Audio waveform player**: Audio files (MP3, WAV, OGG, FLAC, M4A) now show a canvas waveform with play/pause, click-to-seek, and progress overlay. Peaks are computed client-side via the Web Audio API — no backend dependencies. Waveforms lazy-decode when scrolled into view.
+- **Single-line toolbar**: Header and tab bar merged into one row — logo+version (left), tabs (center), help+TTL (right). More compact, less vertical space wasted.
+
+### v2.6.0
+
+- **Short links**: Shareable URLs are now `/{id}/{filename}` instead of `/link/{id}`. Bare `/{id}` auto-redirects to the named form so download tools and AI agents see the correct filename. `/link/{id}` still works as a legacy alias.
+- **MIME auto-detection**: Uploads with a generic `Content-Type` (e.g. `application/octet-stream` from curl) now detect the real type from the filename extension first, then content sniffing. A `.gif` uploaded via curl is correctly stored as `image/gif`.
+- **Download button**: File and image cards now have a dedicated download button that forces `Content-Disposition: attachment`.
+- **MIME type editing**: `PATCH /api/files/{id}` accepts a `mime_type` field. An in-app tag icon on each file card lets you fix a wrong MIME type manually.
+- **HEAD support**: `HEAD /{id}` returns headers (filename, content-type, size) without the body — useful for AI tools to cheaply inspect an item.
+- **`?direct=1`**: Skips the filename redirect for `curl -O` compatibility without `-L`.
+
+### v2.5.9
+
+- Vision evidence inspection (`inspect_image` MCP tool)
+- Live log drawer
+- Clipboard loading state fixes
+
+---
+
 ## Development
 
 ```bash
@@ -298,6 +363,18 @@ make test    # go test ./...
 ```
 
 Tests use a mock vision server — no external LLM required. CI runs tests before building the Docker image; the `build` job is gated on `test`.
+
+### Telegram Notifications
+
+CI sends notifications to Telegram on release publishes and CI failures. To enable, set two repo secrets:
+
+```bash
+gh secret set TELEGRAM_TOKEN --repo $(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh secret set TELEGRAM_TO --repo $(gh repo view --json nameWithOwner -q .nameWithOwner)
+```
+
+- `TELEGRAM_TOKEN` — bot token from [@BotFather](https://t.me/BotFather)
+- `TELEGRAM_TO` — channel ID (`@yourchannel` or `-1001234567890` for private channels)
 
 ---
 
