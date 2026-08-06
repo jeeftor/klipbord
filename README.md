@@ -9,10 +9,11 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 
 [![Release](https://img.shields.io/github/v/release/jeeftor/klipbord?style=flat-square&color=2f6fed)](https://github.com/jeeftor/klipbord/releases)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fjeeftor%2Fklipbord-2f6fed?style=flat-square&logo=docker&logoColor=white)](https://github.com/jeeftor/klipbord/pkgs/container/klipbord)
-[![Go](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/go-1.26+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Tests](https://img.shields.io/github/actions/workflow/status/jeeftor/klipbord/ci.yml?style=flat-square&label=tests)](https://github.com/jeeftor/klipbord/actions)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Security](https://github.com/jeeftor/klipbord/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/jeeftor/klipbord/actions/workflows/security.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/github.com/jeeftor/klipbord/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jeeftor/klipbord)
 
 </div>
 

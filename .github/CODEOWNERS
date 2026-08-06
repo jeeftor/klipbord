@@ -1,0 +1,8 @@
+# Default owner
+* @jeeftor
+
+# Critical paths require review
+/.github/workflows/ @jeeftor
+/Dockerfile @jeeftor
+/go.mod @jeeftor
+/go.sum @jeeftor
