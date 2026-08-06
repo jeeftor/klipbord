@@ -6,6 +6,7 @@ on:
       - '.github/scripts/capture-ui-snapshots.sh'
       - '.github/playwright-cli.json'
       - '.github/workflows/ui-snapshots.yml'
+      - 'Dockerfile'
       - '**.go'
       - 'internal/webassets/static/**'
       - 'internal/app/testdata/**'
@@ -24,12 +25,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -40,15 +35,16 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/klipbord-playwright-browsers
         run: npx --yes --package=@playwright/cli@0.1.17 playwright-cli install-browser chromium --only-shell
 
-      - name: Build Klipbord
-        run: go build -o .tmp/klipbord .
-
-      - name: Start Klipbord
+      - name: Build and start Klipbord container
         run: |
           mkdir -p .tmp/data
-          DATA_DIR="$PWD/.tmp/data" BASE_URL=http://127.0.0.1:8080 PORT=8080 VISION_ENABLED=false \
-            .tmp/klipbord >.tmp/klipbord.log 2>&1 &
-          echo $! >.tmp/klipbord.pid
+          docker build --tag klipbord:ui-snapshots .
+          docker run --detach --name klipbord-ui-snapshots \
+            --publish 8080:8080 \
+            --volume "$PWD/.tmp/data:/data" \
+            --env BASE_URL=http://127.0.0.1:8080 \
+            --env VISION_ENABLED=false \
+            klipbord:ui-snapshots
 
       - name: Capture screenshots
         env:
@@ -60,6 +56,14 @@ jobs:
           PWTEST_DAEMON_SESSION_DIR: ${{ runner.temp }}/klipbord-playwright-daemon
         run: .github/scripts/capture-ui-snapshots.sh
 
+      - name: Collect container log
+        if: always()
+        run: docker logs klipbord-ui-snapshots >.tmp/klipbord-container.log 2>&1 || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm --force klipbord-ui-snapshots || true
+
       - name: Upload UI snapshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,5 +71,5 @@ jobs:
           name: ui-snapshots
           path: |
             artifacts/ui-snapshots/
-            .tmp/klipbord.log
+            .tmp/klipbord-container.log
           if-no-files-found: warn

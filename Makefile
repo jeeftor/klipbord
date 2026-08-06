@@ -1,8 +1,9 @@
-.PHONY: help build run fmt vet test check
+.PHONY: help build kb run fmt vet test check
 
 help:
 	@printf '%s\n' 'Available targets:'
 	@printf '%s\n' '  build  Build the Klipbord binary'
+	@printf '%s\n' '  kb     Build the Klipbord command-line client'
 	@printf '%s\n' '  run    Run Klipbord locally'
 	@printf '%s\n' '  fmt    Format Go source files'
 	@printf '%s\n' '  vet    Run Go static analysis'
@@ -11,6 +12,9 @@ help:
 
 build:
 	go build -o klipbord .
+
+kb:
+	go build -o kb ./cmd/kb
 
 run:
 	go run .
@@ -25,7 +29,7 @@ test:
 	go test ./...
 
 check:
-	@unformatted="$$(gofmt -l $$(find . -type f -name '*.go' -not -path './.git/*' -not -path './.gocache/*'))"; \
+	@unformatted="$$(gofmt -l $$(find . -type f -name '*.go' -not -path './.git/*' -not -path './.gocache/*' -not -path './.gomodcache/*' -not -path './.gopath/*'))"; \
 	if [ -n "$$unformatted" ]; then \
 		echo "Run 'make fmt' to format:"; \
 		echo "$$unformatted"; \
