@@ -155,6 +155,24 @@ their values; `oidc` uses OpenID Connect discovery and refresh tokens.
 Use `kb profile list` and `kb profile use NAME` when you have more than one
 Klipbord connection.
 
+### Version management
+
+```bash
+$ kb version
+kb version v2.14.0
+
+$ kb update --check
+An update is available: v2.14.0 (current: v2.13.0). Run 'kb update' to upgrade.
+
+$ kb update
+Updating kb v2.13.0 → v2.14.0...
+== Installed kb to /home/user/.local/bin/kb
+```
+
+`kb` also checks for updates automatically once per day when uploading
+files. If a newer version is available, it prints a notice to stderr
+(never blocks or fails the upload).
+
 ---
 
 ## Configuration

@@ -38,6 +38,7 @@ func NewRootCommand(version string) *cobra.Command {
 			if len(paths) == 0 && stdinIsTerminal() {
 				return command.Help()
 			}
+			state.maybeCheckVersion(command.Context(), command.ErrOrStderr())
 			return state.upload(command.Context(), command.OutOrStdout(), command.ErrOrStderr(), paths, command.Flags())
 		},
 	}
@@ -48,7 +49,7 @@ func NewRootCommand(version string) *cobra.Command {
 	root.Flags().Bool("persistent", false, "make uploaded items persistent")
 	root.Flags().Bool("json", false, "write JSON output")
 	root.Version = version
-	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand())
+	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand(), state.updateCommand(), state.versionCommand())
 	return root
 }
 
@@ -579,4 +580,95 @@ func discoverAuthConfig(ctx context.Context, serverURL, version string) (authCon
 	default:
 		return authConfigResponse{}, fmt.Errorf("unexpected response %s during discovery", resp.Status)
 	}
+}
+
+// userAgent returns the klipbord-cli User-Agent string for this build.
+func (state commandState) userAgent() string {
+	version := state.version
+	if version == "" {
+		version = "dev"
+	}
+	return "klipbord-cli/" + version
+}
+
+// maybeCheckVersion performs a non-blocking, at-most-once-per-day check for a
+// newer release. It never blocks or fails the surrounding command: the network
+// lookup runs in a goroutine with a short timeout and any error is discarded.
+// The notice (if any) is printed to stderr.
+func (state commandState) maybeCheckVersion(ctx context.Context, stderr io.Writer) {
+	store, err := state.store()
+	if err != nil {
+		return
+	}
+	config, err := store.Load()
+	if err != nil {
+		return
+	}
+	today := time.Now().Format("2006-01-02")
+	if config.LastVersionCheck == today {
+		return
+	}
+	// Record today's date immediately so repeated invocations within the same
+	// day do not trigger additional checks, even if this one fails.
+	config.LastVersionCheck = today
+	_ = store.Save(config)
+
+	go func() {
+		checkCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		latest, err := checkLatestVersion(checkCtx, nil, state.userAgent())
+		if err != nil {
+			return
+		}
+		if !compareVersions(state.version, latest) {
+			return
+		}
+		_, _ = fmt.Fprintf(stderr, "A new version of kb is available: %s (current: %s). Run 'kb update' to upgrade.\n", latest, state.version)
+	}()
+}
+
+func (state commandState) versionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the kb version",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			if state.version == "dev" {
+				_, err := fmt.Fprintln(command.OutOrStdout(), "kb version dev (built from source)")
+				return err
+			}
+			_, err := fmt.Fprintf(command.OutOrStdout(), "kb version %s\n", state.version)
+			return err
+		},
+	}
+}
+
+func (state commandState) updateCommand() *cobra.Command {
+	var checkOnly bool
+	command := &cobra.Command{
+		Use:   "update",
+		Short: "Update kb to the latest release",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			ctx := command.Context()
+			stdout := command.OutOrStdout()
+			stderr := command.ErrOrStderr()
+			latest, err := checkLatestVersion(ctx, nil, state.userAgent())
+			if err != nil {
+				return fmt.Errorf("check for updates: %w", err)
+			}
+			if !compareVersions(state.version, latest) {
+				_, err := fmt.Fprintf(stdout, "kb %s is up to date\n", state.version)
+				return err
+			}
+			if checkOnly {
+				_, err := fmt.Fprintf(stdout, "An update is available: %s (current: %s). Run 'kb update' to upgrade.\n", latest, state.version)
+				return err
+			}
+			_, _ = fmt.Fprintf(stderr, "Updating kb %s → %s...\n", state.version, latest)
+			return runInstallScript(ctx, stdout, stderr)
+		},
+	}
+	command.Flags().BoolVar(&checkOnly, "check", false, "only check for an update; do not install")
+	return command
 }
