@@ -3224,12 +3224,12 @@ function viewText(id) {
       document.getElementById('modalTitle').textContent = data.name;
       const body = document.getElementById('modalBody');
       // Try to detect language and highlight
-      const lang = detectLang(data.name);
+      const lang = detectLang(data.name, data.content);
       if (lang && window.hljs) {
         body.innerHTML = `<pre><code class="language-${lang}">${escapeHtml(data.content)}</code></pre>`;
         hljs.highlightElement(body.querySelector('code'));
       } else if (window.hljs) {
-        body.innerHTML = `<pre><code>${escapeHtml(data.content)}</code></pre>`;
+        body.innerHTML = `<pre><code class="language-plaintext">${escapeHtml(data.content)}</code></pre>`;
         hljs.highlightElement(body.querySelector('code'));
       } else {
         body.innerHTML = `<pre>${escapeHtml(data.content)}</pre>`;
@@ -4534,18 +4534,116 @@ function showConfirm(message, opts = {}) {
   });
 }
 
-function detectLang(filename) {
-  const ext = filename.split('.').pop()?.toLowerCase();
+function detectLangFromContent(content) {
+  if (!content) return '';
+  const head = content.slice(0, 8192);
+  const first = head.split(/\r?\n/)[0].trim();
+
+  const shebang = first.match(/^#!\s*(?:\/usr\/bin\/env\s+)?(?:\/.*\/)?(\S+)/);
+  if (shebang) {
+    const bin = shebang[1].toLowerCase().replace(/[\d.]+$/, '');
+    const shebangMap = {
+      bash: 'bash', sh: 'bash', zsh: 'bash', fish: 'bash', dash: 'bash',
+      ksh: 'bash', csh: 'bash', tcsh: 'bash',
+      python: 'python', python3: 'python', python2: 'python',
+      node: 'javascript', 'node.js': 'javascript',
+      ruby: 'ruby', ruby3: 'ruby', perl: 'perl', perl5: 'perl',
+      php: 'php', lua: 'lua', r: 'r', go: 'go', rust: 'rust',
+    };
+    if (shebangMap[bin]) return shebangMap[bin];
+  }
+
+  const scores = {};
+  const score = (lang, n) => { scores[lang] = (scores[lang] || 0) + n; };
+  const t = head;
+
+  // Shell / bash
+  if (/(^|\s)(set -[aex]|set \+a)(\s|$)/m.test(t)) score('bash', 3);
+  if (/(^|\s)(if|then|else|elif|fi|for|while|do|done|case|esac)(\s|$)/m.test(t) && /\$\w+|\$\{[^}]*\}/.test(t)) score('bash', 2);
+  if (/(^|\s)(source|\.|export)\s+/m.test(t) && /\$\w+|\$\{[^}]*\}/.test(t)) score('bash', 1);
+
+  // Python
+  if (/(^|\s)def\s+\w+\s*\(.*\):/.test(t)) score('python', 3);
+  if (/(^|\s)import\s+\w+/.test(t) || /(^|\s)from\s+\S+\s+import/.test(t)) score('python', 2);
+  if (/if\s+__name__\s*==\s*['"]__main__['"]/.test(t)) score('python', 3);
+
+  // JavaScript / TypeScript
+  if (/\b(const|let|var)\s+\w+\s*=/.test(t)) score('javascript', 1);
+  if (/\bfunction\s+\w+\s*\(/.test(t) || /=>/.test(t)) score('javascript', 1);
+  if (/\bconsole\.log\(/.test(t) || /\brequire\(/.test(t) || /\bmodule\.exports/.test(t)) score('javascript', 2);
+  if (/\binterface\s+\w+/.test(t) || /:\s*(string|number|boolean|any|unknown|void)\b/.test(t)) score('typescript', 2);
+
+  // Go
+  if (/(^|\s)package\s+\w+$/m.test(t)) score('go', 3);
+  if (/(^|\s)func\s+\w+\s*\(/.test(t)) score('go', 2);
+
+  // Rust
+  if (/(^|\s)fn\s+\w+\s*\(/.test(t)) score('rust', 2);
+  if (/(^|\s)use\s+\w+::/.test(t) || /(^|\s)impl\s+\w+/.test(t)) score('rust', 1);
+
+  // Java / C# / C-family
+  if (/(^|\s)public\s+(static\s+)?void\s+main\s*\(/.test(t) || /System\.out\.println\(/.test(t)) score('java', 3);
+  if (/(^|\s)namespace\s+\w+/.test(t) || /Console\.(Write|WriteLine)\(/.test(t)) score('csharp', 2);
+  if (/(^|\s)(int|char|float|double|void|bool)\s+\w+/.test(t) && /[\{\};]/.test(t)) score('cpp', 1);
+
+  // SQL
+  if (/\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|GROUP\s+BY|ORDER\s+BY|CREATE\s+TABLE)\b/i.test(t)) score('sql', 2);
+
+  // JSON
+  if (/^\s*[\{\[]/.test(t) && /"[^"]+"\s*:/.test(t)) score('json', 2);
+
+  // YAML
+  if (/^\s*---\s*$/.test(t) || (/^[\w.-]+:\s*.+$/m.test(t) && !t.includes('{') && !t.includes('['))) score('yaml', 2);
+
+  // Markdown
+  if (/^#{1,6}\s+/m.test(t) || /^>\s+/m.test(t) || /^[-*]\s+/m.test(t)) score('markdown', 2);
+
+  // HTML
+  if (/<\/?(!DOCTYPE|html|head|body|div|span|script|style|a|p|table|ul|ol|li|form)\b/i.test(t)) score('html', 3);
+
+  // CSS / SCSS
+  if (/\b[\w-]+\s*:\s*[^;\n]+;/.test(t) && /[\{\}]/.test(t)) score('css', 2);
+
+  // INI / env
+  if (/^\[\w+\]$/m.test(t) || /^[\w_]+=.*$/m.test(t)) score('ini', 1);
+
+  // PHP
+  if (/<\?php/.test(t)) score('php', 3);
+
+  // Ruby
+  if (/(^|\s)def\s+\w+(\s|\(|\b)/.test(t) || /(^|\s)require\s+['"]/.test(t)) score('ruby', 1);
+
+  // Swift / Kotlin
+  if (/(^|\s)import\s+(UIKit|SwiftUI|Foundation)\b/.test(t)) score('swift', 2);
+  if (/(^|\s)fun\s+\w+\s*\(/.test(t) || /(^|\s)val\s+\w+\s*:/.test(t)) score('kotlin', 2);
+
+  // XML
+  if (/<\?xml/.test(t) || /<(\w+)[^>]*>.*<\/\1>/.test(t)) score('xml', 2);
+
+  let best = '', bestScore = 0;
+  for (const [lang, s] of Object.entries(scores)) {
+    if (s > bestScore) { best = lang; bestScore = s; }
+  }
+  return best;
+}
+
+function detectLang(filename, content) {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
   const map = {
-    'py': 'python', 'js': 'javascript', 'ts': 'typescript', 'go': 'go',
-    'rs': 'rust', 'java': 'java', 'c': 'c', 'cpp': 'cpp', 'h': 'c',
+    'py': 'python', 'js': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
+    'ts': 'typescript', 'tsx': 'typescript', 'jsx': 'javascript',
+    'go': 'go', 'rs': 'rust', 'java': 'java', 'c': 'c', 'cpp': 'cpp', 'h': 'c',
     'sh': 'bash', 'bash': 'bash', 'yml': 'yaml', 'yaml': 'yaml',
-    'json': 'json', 'xml': 'xml', 'html': 'html', 'css': 'css',
+    'json': 'json', 'xml': 'xml', 'html': 'html', 'css': 'css', 'scss': 'scss',
     'sql': 'sql', 'md': 'markdown', 'txt': 'plaintext', 'log': 'plaintext',
-    'php': 'php', 'rb': 'ruby', 'swift': 'swift', 'kt': 'kotlin',
-    'dockerfile': 'dockerfile', 'env': 'ini', 'toml': 'ini',
+    'php': 'php', 'rb': 'ruby', 'swift': 'swift', 'kt': 'kotlin', 'kts': 'kotlin',
+    'env': 'ini', 'toml': 'ini', 'cfg': 'ini',
+    'lua': 'lua', 'pl': 'perl', 'pm': 'perl', 'r': 'r', 'cs': 'csharp',
+    'graphql': 'graphql', 'gql': 'graphql', 'diff': 'diff', 'patch': 'diff',
   };
-  return map[ext] || '';
+  const mapped = map[ext];
+  if (mapped && mapped !== 'plaintext') return mapped;
+  return content ? detectLangFromContent(content) : '';
 }
 
 function formatSize(bytes) {
@@ -5018,10 +5116,10 @@ function loadTextPreviews(items) {
         textContentCache[item.id] = data.content || '';
         previews.forEach(el => {
           const preview = data.content.substring(0, 200);
-          const lang = detectLang(item.name);
+          const lang = detectLang(item.name, data.content);
           if (window.hljs) {
             const code = document.createElement('code');
-            if (lang) code.className = `language-${lang}`;
+            code.className = lang ? `language-${lang}` : 'language-plaintext';
             code.textContent = preview;
             el.innerHTML = '';
             el.appendChild(code);

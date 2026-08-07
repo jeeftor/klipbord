@@ -26,9 +26,9 @@ type Profile struct {
 
 // Config holds local, non-secret client settings.
 type Config struct {
-	ActiveProfile     string             `mapstructure:"active_profile" yaml:"active_profile"`
-	Profiles          map[string]Profile `mapstructure:"profiles" yaml:"profiles"`
-	LastVersionCheck  string             `mapstructure:"last_version_check" yaml:"last_version_check"`
+	ActiveProfile    string             `mapstructure:"active_profile" yaml:"active_profile"`
+	Profiles         map[string]Profile `mapstructure:"profiles" yaml:"profiles"`
+	LastVersionCheck string             `mapstructure:"last_version_check" yaml:"last_version_check"`
 }
 
 // Credentials are held in the OS keychain, never in the config file.
