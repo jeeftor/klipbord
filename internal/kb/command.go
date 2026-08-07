@@ -175,7 +175,10 @@ func (state commandState) loginCommand() *cobra.Command {
 					issuer = prompt(stderr, stdout, "OIDC issuer URL", "")
 				}
 				if clientID == "" {
-					clientID = prompt(stderr, stdout, "OIDC client ID", "klipbord")
+					clientID = prompt(stderr, stdout, "OIDC client ID", "")
+				}
+				if issuer == "" || clientID == "" {
+					return errors.New("OIDC issuer URL and client ID are required")
 				}
 			}
 
