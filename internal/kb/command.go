@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -142,10 +144,26 @@ func (state commandState) loginCommand() *cobra.Command {
 				}
 				profileURL = prompt(stderr, stdout, "Klipbord server URL", "http://localhost:8080")
 			}
+			enteredURL := profileURL
+			bareHost := !strings.Contains(strings.TrimSpace(enteredURL), "://")
+			profileURL, err := normalizeServerURL(profileURL)
+			if err != nil {
+				return err
+			}
 
 			// Auto-discover auth config from the server
 			if method == "" {
 				discovered, err := discoverAuthConfig(ctx, profileURL, state.version)
+				if err != nil && bareHost && allowsHTTPFallback(profileURL) {
+					fallbackURL, fallbackErr := normalizeServerURL("http://" + strings.TrimSpace(enteredURL))
+					if fallbackErr == nil {
+						_, _ = fmt.Fprintf(stderr, "HTTPS discovery failed; retrying local target over HTTP: %s\n", fallbackURL)
+						discovered, err = discoverAuthConfig(ctx, fallbackURL, state.version)
+						if err == nil {
+							profileURL = fallbackURL
+						}
+					}
+				}
 				if err != nil {
 					_, _ = fmt.Fprintf(stderr, "Warning: could not auto-detect auth config from %s: %v\n", profileURL, err)
 					if stdinIsTerminal() {
@@ -527,6 +545,35 @@ func prompt(stderr, stdout io.Writer, label, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// normalizeServerURL accepts a host name as a convenience and validates HTTP URLs.
+func normalizeServerURL(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", errors.New("Klipbord server URL is required")
+	}
+	if !strings.Contains(value, "://") {
+		value = "https://" + value
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", errors.New("Klipbord server URL must be an absolute http or https URL")
+	}
+	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+func allowsHTTPFallback(serverURL string) bool {
+	parsed, err := url.Parse(serverURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") || !strings.Contains(host, ".") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast())
 }
 
 // authConfigResponse holds the OIDC config discovered from the server.
