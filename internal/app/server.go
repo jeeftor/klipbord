@@ -115,6 +115,7 @@ func NewHandler() *http.ServeMux {
 	mux.HandleFunc("/api/upload/status/", apiUploadStatusHandler)
 	mux.HandleFunc("/api/upload/complete", apiUploadCompleteHandler)
 	mux.HandleFunc("/api/auth/config", authConfigHandler)
+	mux.HandleFunc("/api/identity", identityHandler)
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/version", versionHandler)
 	mux.HandleFunc("/api/update-check", updateCheckHandler)

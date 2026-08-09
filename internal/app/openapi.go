@@ -29,6 +29,13 @@ func buildOpenAPISpec() map[string]interface{} {
 			{"url": baseURL, "description": "Current server"},
 		},
 		"paths": map[string]interface{}{
+			"/api/identity": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary":     "Return identity headers supplied by an Authentik forward-auth proxy",
+					"description": "Diagnostic endpoint only; Klipbord does not use this identity for access control.",
+					"responses":   map[string]interface{}{"200": map[string]interface{}{"description": "Current proxy identity, if available"}},
+				},
+			},
 			"/api/logs": map[string]interface{}{
 				"get": map[string]interface{}{
 					"summary":   "Get the most recent in-memory server log lines",

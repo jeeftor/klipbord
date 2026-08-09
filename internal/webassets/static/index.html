@@ -96,6 +96,16 @@ body {
   gap: 12px;
   align-items: center;
 }
+.identity-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: help;
+}
+.identity-status svg { width: 16px; height: 16px; }
 .ttl-select {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -1018,6 +1028,7 @@ body {
   .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; }
   .tab { padding: 0 10px; font-size: 13px; }
   .tab-icon { width: 14px; height: 14px; }
+  .identity-status span { display: none; }
   .ttl-select { padding: 4px 8px; font-size: 12px; }
   .log-drawer { left: 0; right: 0; bottom: 0; border-radius: 12px 12px 0 0; transform: translateY(calc(100% - 68px)); }
   .log-drawer.open { height: min(62dvh, 560px) !important; }
@@ -1321,6 +1332,10 @@ body {
   </div>
   <div class="header-actions">
     <a class="update-notice" id="updateNotice" hidden target="_blank" rel="noopener">New version available</a>
+    <div class="identity-status" id="identityStatus" hidden aria-label="Forwarded identity">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+      <span id="identityName"></span>
+    </div>
     <button class="icon-btn" data-tooltip="Help & Shortcuts" onclick="openHelpModal()" style="padding:6px" aria-label="Help">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
     </button>
@@ -2123,6 +2138,21 @@ body {
 const API = '/api';
 const BASE = window.location.origin;
 let currentModalId = null;
+
+function loadIdentity() {
+  fetch('/api/identity')
+    .then(response => response.ok ? response.json() : null)
+    .then(identity => {
+      if (!identity?.authenticated) return;
+      const status = document.getElementById('identityStatus');
+      const name = document.getElementById('identityName');
+      const displayName = identity.username || identity.user_id;
+      name.textContent = displayName;
+      status.title = `Forwarded by Authentik\nUser: ${displayName}\nGroups: ${(identity.groups || []).join(', ') || 'none'}`;
+      status.hidden = false;
+    })
+    .catch(() => {});
+}
 
 // Client-side search state: last-loaded item arrays + a cache of full text-snippet
 // content (so search can match on paste content, not just the 200-char preview).
@@ -5302,6 +5332,7 @@ setInterval(() => {
 }, 2000);
 
 // Initial load is selected from the URL so a refresh keeps the current section.
+loadIdentity();
 activateTab(tabFromLocation());
 
 // --- Pull to refresh ---
