@@ -133,7 +133,9 @@ func cleanupOrphanedMetadata() {
 	log.Printf("Cleanup: removed %d orphaned entries", removed)
 	data, err := json.MarshalIndent(meta, "", "  ")
 	if err == nil {
-		_ = os.WriteFile(filepath.Join(dataDir, metaFile), data, 0644)
+		if err := writeMetadata(data); err != nil {
+			log.Printf("Cleanup: failed to write metadata: %v", err)
+		}
 	}
 }
 
@@ -145,9 +147,39 @@ func saveMetadata() {
 		log.Printf("Failed to marshal metadata: %v", err)
 		return
 	}
-	if err := os.WriteFile(filepath.Join(dataDir, metaFile), data, 0644); err != nil {
+	if err := writeMetadata(data); err != nil {
 		log.Printf("Failed to write metadata: %v", err)
 	}
+}
+
+// writeMetadata atomically replaces metadata with an owner-readable file so a
+// crash cannot leave a partially written item index behind.
+func writeMetadata(data []byte) error {
+	temporary, err := os.CreateTemp(dataDir, metaFile+".*")
+	if err != nil {
+		return fmt.Errorf("create temporary metadata: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0600); err != nil {
+		temporary.Close()
+		return fmt.Errorf("set metadata permissions: %w", err)
+	}
+	if _, err := temporary.Write(data); err != nil {
+		temporary.Close()
+		return fmt.Errorf("write temporary metadata: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return fmt.Errorf("sync temporary metadata: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close temporary metadata: %w", err)
+	}
+	if err := os.Rename(temporaryPath, filepath.Join(dataDir, metaFile)); err != nil {
+		return fmt.Errorf("replace metadata: %w", err)
+	}
+	return nil
 }
 
 func addItem(item Item) {

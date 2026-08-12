@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/zalando/go-keyring"
@@ -224,11 +223,11 @@ func validateProfile(profile Profile) error {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return errors.New("profile URL must be an absolute URL")
 	}
-	if parsed.Scheme != "https" && !isLoopbackHost(parsed.Hostname()) {
-		return errors.New("profile URL must use HTTPS unless it is a loopback address")
+	if parsed.Scheme != "https" && !allowsHTTPFallback(profile.URL) {
+		return errors.New("profile URL must use HTTPS unless it is a local-network address")
 	}
 	switch profile.Method {
-	case "none", "bearer", "cloudflare", "headers", "oidc":
+	case "none", "bearer", "cloudflare", "headers", "oidc", "authentik-app-password":
 	default:
 		return fmt.Errorf("unsupported login method %q", profile.Method)
 	}
@@ -236,9 +235,4 @@ func validateProfile(profile Profile) error {
 		return errors.New("OIDC login requires an issuer and client ID")
 	}
 	return nil
-}
-
-func isLoopbackHost(host string) bool {
-	host = strings.ToLower(host)
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }

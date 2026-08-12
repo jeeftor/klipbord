@@ -78,7 +78,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "get_file_url",
-		Description: "Get the public URL for a file or text snippet by ID.",
+		Description: "Get the public share URL for a file or text snippet by ID. Anyone with this URL can access the item.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -92,13 +92,13 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "upload_file",
-		Description: "Upload a file (base64-encoded content + filename). Returns the item ID and URL.",
+		Description: "Upload a named file with base64-encoded content. Use this for artifacts that must retain their filename and MIME type, including YAML, JSON, scripts, and configuration files. Returns the item ID and public URL.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"filename": map[string]any{
 					"type":        "string",
-					"description": "Name of the file",
+					"description": "Filename to preserve and use in the share URL and downloads, for example config.yaml",
 				},
 				"content": map[string]any{
 					"type":        "string",
@@ -106,7 +106,7 @@ var mcpTools = []MCPTool{
 				},
 				"mime_type": map[string]any{
 					"type":        "string",
-					"description": "MIME type of the file (optional)",
+					"description": "Optional MIME type. Provide application/yaml for YAML when precise content serving matters; otherwise it is detected from the filename and content.",
 				},
 				"ttl": map[string]any{
 					"type":        "string",
@@ -122,7 +122,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "create_text",
-		Description: "Create a text snippet. Returns the item ID and URL.",
+		Description: "Create a plain-text note or short snippet, always served as text/plain. Do not use this for named artifacts such as YAML, JSON, scripts, or configuration files; use upload_file instead. Returns the item ID and public URL.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -132,7 +132,7 @@ var mcpTools = []MCPTool{
 				},
 				"name": map[string]any{
 					"type":        "string",
-					"description": "Optional name for the snippet",
+					"description": "Optional display and download name only; it does not change the text/plain content type",
 				},
 				"ttl": map[string]any{
 					"type":        "string",
@@ -162,7 +162,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "delete_file",
-		Description: "Delete a file or text snippet by ID.",
+		Description: "Permanently delete a file or text snippet by ID. This removes its stored content and cannot be undone.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -212,7 +212,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "analyze_image",
-		Description: "Trigger or re-trigger vision analysis for an image item. Extracts text and generates a description using the configured vision model. Optionally specify a prompt name to use a specific prompt template.",
+		Description: "Run vision analysis for an image item using the configured vision provider. This can incur provider cost and saves or replaces the analysis for the selected prompt. Extracts text and generates a description; optionally specify a prompt name.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -230,7 +230,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "inspect_image",
-		Description: "Ask a focused visual question about an image for a text-only agent. Returns structured visible evidence using the selected mode: ui, ocr, code, document, diagram, or describe.",
+		Description: "Ask a focused visual question about an image using the configured vision provider. This can incur provider cost and saves a new inspection analysis. Returns structured visible evidence using ui, ocr, code, document, diagram, or describe mode.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -260,7 +260,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "create_prompt",
-		Description: "Create a new vision prompt template. The prompt text instructs the vision model how to analyze images.",
+		Description: "Create a persistent custom vision prompt template. The prompt text instructs the vision model how to analyze images.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -282,7 +282,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "update_prompt",
-		Description: "Update an existing vision prompt template (built-in or custom).",
+		Description: "Persistently update an existing vision prompt template (built-in or custom).",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -326,7 +326,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "set_vision_preset",
-		Description: "Switch the active vision LLM preset. Fails if env vars are overriding config.",
+		Description: "Persistently switch the server-wide active vision LLM preset. Fails if environment variables override configuration.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -340,7 +340,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "test_vision_preset",
-		Description: "Test connectivity to a vision LLM preset by sending a minimal chat request. Returns success, message, and latency.",
+		Description: "Send a minimal request to test connectivity to a vision LLM preset. This invokes the configured provider and can incur provider cost. Returns success, message, and latency.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -353,7 +353,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "test_vision",
-		Description: "Run the full vision pipeline on a built-in sample image. Tests the entire flow: image upload → model analysis → text extraction. Optionally specify image_type to match a specific prompt (terminal, code, document, diagram). Returns extracted text, image type, and latency.",
+		Description: "Run the full vision pipeline on a built-in sample image. This invokes the configured provider and can incur provider cost; it tests image upload, model analysis, and text extraction. Optionally specify image_type to match terminal, code, document, or diagram. Returns extracted text, image type, and latency.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -366,7 +366,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "compare_vision",
-		Description: "Run an image through ALL configured vision presets in parallel, compare results, and rank by quality. Uses pairwise LLM judging when possible (sends image + all results to the active preset's model for ranking), with heuristic fallback (text length, JSON validity, refusal markers). Returns ranked results with scores and rationale.",
+		Description: "Run an image through every configured vision preset, compare results, and rank quality. This can make multiple provider calls and incur substantial cost; pairwise LLM judging can add another call. Returns ranked results with scores and rationale.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -387,7 +387,7 @@ var mcpTools = []MCPTool{
 	},
 	{
 		Name:        "compare_prompts",
-		Description: "Run a single image through ALL available vision prompts (default, terminal, code, document, diagram, screenshot, and any custom prompts) and rank by quality. Answers the question: 'Is the default prompt good enough, or do specialized prompts help?' Returns ranked results with scores, char counts, and extracted text.",
+		Description: "Run one image through every available vision prompt and rank quality. This can make multiple provider calls and incur substantial cost. Returns ranked results with scores, character counts, and extracted text.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

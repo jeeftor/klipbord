@@ -12,7 +12,10 @@ import (
 func setupTestDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
+	metaMu.Lock()
 	dataDir = dir
+	meta = Metadata{Items: []Item{}}
+	metaMu.Unlock()
 	assets = Assets{IndexHTML: []byte("<html><body>Klipbord {{VERSION}}</body></html>")}
 	// Create subdirectories
 	for _, d := range []string{textDir, fileDir, chunkDir} {
@@ -20,8 +23,6 @@ func setupTestDir(t *testing.T) string {
 			t.Fatalf("Failed to create dir %s: %v", d, err)
 		}
 	}
-	// Reset global state
-	meta = Metadata{Items: []Item{}}
 	maxUploadMB = defaultMaxUploadMB
 	maxUploadBytes = int64(maxUploadMB) * 1024 * 1024
 	return dir
@@ -165,6 +166,25 @@ func TestAddFindItem(t *testing.T) {
 	_, ok = findItem("nonexistent")
 	if ok {
 		t.Error("findItem() found non-existent item")
+	}
+}
+
+func TestSaveMetadataWritesPrivateFile(t *testing.T) {
+	dir := setupTestDir(t)
+	addItem(makeItem("private01", "private.txt", "text"))
+
+	info, err := os.Stat(filepath.Join(dir, metaFile))
+	if err != nil {
+		t.Fatalf("stat metadata: %v", err)
+	}
+	if permissions := info.Mode().Perm(); permissions != 0600 {
+		t.Errorf("metadata permissions = %o, want 600", permissions)
+	}
+
+	meta = Metadata{}
+	loadMetadata()
+	if _, ok := findItem("private01"); !ok {
+		t.Fatal("metadata did not survive reload")
 	}
 }
 

@@ -3,6 +3,7 @@ package kb
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,9 +23,12 @@ import (
 
 type commandState struct {
 	configPath string
+	logLevel   string
 	profile    string
 	version    string
 }
+
+type debugLogger func(string, ...any)
 
 var stdinIsTerminal = terminalInput
 
@@ -45,6 +49,7 @@ func NewRootCommand(version string) *cobra.Command {
 		},
 	}
 	root.PersistentFlags().StringVar(&state.configPath, "config", "", "config file path")
+	root.PersistentFlags().StringVar(&state.logLevel, "log-level", "", "logging level: debug")
 	root.PersistentFlags().StringVarP(&state.profile, "profile", "p", "", "connection profile")
 	root.Flags().String("name", "", "item name")
 	root.Flags().String("ttl", "7d", "expiration: 1h, 1d, 7d, 30d, or never")
@@ -123,7 +128,7 @@ func (state commandState) upload(ctx context.Context, stdout, stderr io.Writer, 
 }
 
 func (state commandState) loginCommand() *cobra.Command {
-	var method, profileName, profileURL, issuer, clientID string
+	var method, profileName, profileURL, issuer, clientID, username string
 	var scopes, headerNames []string
 	command := &cobra.Command{
 		Use:   "login",
@@ -132,6 +137,8 @@ func (state commandState) loginCommand() *cobra.Command {
 			stdout := command.OutOrStdout()
 			stderr := command.ErrOrStderr()
 			ctx := command.Context()
+			logLevel, _ := command.Root().PersistentFlags().GetString("log-level")
+			debug := newDebugLogger(logLevel, stderr)
 
 			if profileName == "" {
 				profileName = "default"
@@ -150,15 +157,16 @@ func (state commandState) loginCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			debug("login target: %s", profileURL)
 
 			// Auto-discover auth config from the server
 			if method == "" {
-				discovered, err := discoverAuthConfig(ctx, profileURL, state.version)
+				discovered, err := discoverAuthConfig(ctx, profileURL, state.version, debug)
 				if err != nil && bareHost && allowsHTTPFallback(profileURL) {
 					fallbackURL, fallbackErr := normalizeServerURL("http://" + strings.TrimSpace(enteredURL))
 					if fallbackErr == nil {
 						_, _ = fmt.Fprintf(stderr, "HTTPS discovery failed; retrying local target over HTTP: %s\n", fallbackURL)
-						discovered, err = discoverAuthConfig(ctx, fallbackURL, state.version)
+						discovered, err = discoverAuthConfig(ctx, fallbackURL, state.version, debug)
 						if err == nil {
 							profileURL = fallbackURL
 						}
@@ -167,7 +175,7 @@ func (state commandState) loginCommand() *cobra.Command {
 				if err != nil {
 					_, _ = fmt.Fprintf(stderr, "Warning: could not auto-detect auth config from %s: %v\n", profileURL, err)
 					if stdinIsTerminal() {
-						method = prompt(stderr, stdout, "Login method (none, oidc, bearer, cloudflare, headers)", "oidc")
+						method = prompt(stderr, stdout, "Login method (none, oidc, authentik-app-password, bearer, cloudflare, headers)", "oidc")
 					} else {
 						return errors.New("--method is required when server discovery is unavailable and stdin is not a terminal")
 					}
@@ -201,7 +209,7 @@ func (state commandState) loginCommand() *cobra.Command {
 			}
 
 			profile := Profile{URL: profileURL, Method: method, Issuer: issuer, ClientID: clientID, Scopes: scopes}
-			credentials, err := loginCredentials(ctx, stderr, profile, headerNames)
+			credentials, err := loginCredentials(ctx, stderr, profile, username, headerNames, debug)
 			if err != nil {
 				return err
 			}
@@ -226,9 +234,10 @@ func (state commandState) loginCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&profileName, "name", "default", "profile name")
 	command.Flags().StringVar(&profileURL, "url", "", "Klipbord base URL")
-	command.Flags().StringVar(&method, "method", "", "login method: none, bearer, cloudflare, headers, or oidc")
+	command.Flags().StringVar(&method, "method", "", "login method: none, oidc, authentik-app-password, bearer, cloudflare, or headers")
 	command.Flags().StringVar(&issuer, "issuer", "", "OIDC issuer URL")
 	command.Flags().StringVar(&clientID, "client-id", "", "OIDC public client ID")
+	command.Flags().StringVar(&username, "username", "", "Authentik username for authentik-app-password login")
 	command.Flags().StringSliceVar(&scopes, "scope", []string{"openid", "profile", "offline_access"}, "OIDC scopes")
 	command.Flags().StringSliceVar(&headerNames, "header", nil, "custom header name; repeat for each header")
 	return command
@@ -446,7 +455,7 @@ func (state commandState) deleteCommand() *cobra.Command {
 	}
 }
 
-func loginCredentials(ctx context.Context, stderr io.Writer, profile Profile, headerNames []string) (Credentials, error) {
+func loginCredentials(ctx context.Context, stderr io.Writer, profile Profile, username string, headerNames []string, debug debugLogger) (Credentials, error) {
 	switch profile.Method {
 	case "none":
 		return Credentials{}, nil
@@ -466,6 +475,8 @@ func loginCredentials(ctx context.Context, stderr io.Writer, profile Profile, he
 			"CF-Access-Client-Id":     clientID,
 			"CF-Access-Client-Secret": clientSecret,
 		}}, nil
+	case "authentik-app-password":
+		return authentikAppPasswordCredentials(username, stderr)
 	case "headers":
 		if len(headerNames) == 0 {
 			return Credentials{}, errors.New("headers login requires at least one --header name")
@@ -483,9 +494,39 @@ func loginCredentials(ctx context.Context, stderr io.Writer, profile Profile, he
 		}
 		return Credentials{Headers: headers}, nil
 	case "oidc":
-		return DeviceLogin(ctx, nil, profile, func(message string) { _, _ = fmt.Fprintln(stderr, message) })
+		return DeviceLogin(ctx, nil, profile, func(message string) { _, _ = fmt.Fprintln(stderr, message) }, debug)
 	default:
 		return Credentials{}, fmt.Errorf("unsupported login method %q", profile.Method)
+	}
+}
+
+func authentikAppPasswordCredentials(username string, stderr io.Writer) (Credentials, error) {
+	if username == "" {
+		username = os.Getenv("AUTHENTIK_USERNAME")
+	}
+	if username == "" && stdinIsTerminal() {
+		username = prompt(stderr, io.Discard, "Authentik username", "")
+	}
+	if username == "" {
+		return Credentials{}, errors.New("Authentik username is required; provide --username or AUTHENTIK_USERNAME")
+	}
+	if strings.ContainsAny(username, ":\r\n") {
+		return Credentials{}, errors.New("Authentik username cannot contain a colon or line break")
+	}
+	password, err := secret("AUTHENTIK_APP_PASSWORD", "Authentik app password: ")
+	if err != nil {
+		return Credentials{}, err
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	return Credentials{Headers: map[string]string{"Authorization": "Basic " + encoded}}, nil
+}
+
+func newDebugLogger(level string, output io.Writer) debugLogger {
+	if !strings.EqualFold(level, "debug") {
+		return func(string, ...any) {}
+	}
+	return func(format string, values ...any) {
+		_, _ = fmt.Fprintf(output, "[debug] "+format+"\n", values...)
 	}
 }
 
@@ -588,7 +629,7 @@ type authConfigResponse struct {
 // with the klipbord-cli User-Agent. If the server is behind Authentik
 // forward_auth with CLI detection, it returns a 401 with X-OIDC-* headers.
 // If the server has no auth, it returns 200 (method=none).
-func discoverAuthConfig(ctx context.Context, serverURL, version string) (authConfigResponse, error) {
+func discoverAuthConfig(ctx context.Context, serverURL, version string, debug debugLogger) (authConfigResponse, error) {
 	endpoint := strings.TrimRight(serverURL, "/") + "/api/files"
 	ua := "klipbord-cli/" + version
 	if ua == "klipbord-cli/" {
@@ -599,6 +640,7 @@ func discoverAuthConfig(ctx context.Context, serverURL, version string) (authCon
 		return authConfigResponse{}, fmt.Errorf("create discovery request: %w", err)
 	}
 	req.Header.Set("User-Agent", ua)
+	debug("auth discovery request: GET %s (User-Agent: %s)", endpoint, ua)
 	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
@@ -607,6 +649,7 @@ func discoverAuthConfig(ctx context.Context, serverURL, version string) (authCon
 		return authConfigResponse{}, fmt.Errorf("probe server: %w", err)
 	}
 	defer resp.Body.Close()
+	debug("auth discovery response: %s", resp.Status)
 
 	switch {
 	case resp.StatusCode == http.StatusOK:
@@ -623,6 +666,7 @@ func discoverAuthConfig(ctx context.Context, serverURL, version string) (authCon
 		if config.Issuer == "" || config.ClientID == "" {
 			return authConfigResponse{}, errors.New("server returned 401 but no X-OIDC-* discovery headers")
 		}
+		debug("auth discovery metadata: issuer=%s client_id=%s scopes=%s", config.Issuer, config.ClientID, strings.Join(config.Scopes, " "))
 		return config, nil
 	case resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently:
 		// Browser-style redirect (forward_auth without CLI detection)

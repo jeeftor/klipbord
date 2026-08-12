@@ -527,16 +527,22 @@ func TestMCPToolsList(t *testing.T) {
 	if !ok {
 		t.Fatalf("tools not an array")
 	}
-	toolNames := make(map[string]bool)
+	toolDescriptions := make(map[string]string)
 	for _, tool := range tools {
 		tm := tool.(map[string]interface{})
-		toolNames[tm["name"].(string)] = true
+		toolDescriptions[tm["name"].(string)] = tm["description"].(string)
 	}
-	expected := []string{"list_files", "get_file", "upload_file", "create_text", "delete_file", "persist_file", "describe_image", "analyze_image", "inspect_image", "list_prompts", "create_prompt", "update_prompt", "delete_prompt", "list_vision_presets", "set_vision_preset", "test_vision_preset", "test_vision"}
+	expected := []string{"list_files", "get_file", "get_file_url", "upload_file", "create_text", "get_text", "delete_file", "persist_file", "describe_image", "analyze_image", "inspect_image", "list_prompts", "create_prompt", "update_prompt", "delete_prompt", "list_vision_presets", "set_vision_preset", "test_vision_preset", "test_vision", "compare_vision", "compare_prompts"}
 	for _, name := range expected {
-		if !toolNames[name] {
+		if _, ok := toolDescriptions[name]; !ok {
 			t.Errorf("tool %q not found in tools/list", name)
 		}
+	}
+	if description := toolDescriptions["create_text"]; !strings.Contains(description, "text/plain") || !strings.Contains(description, "upload_file") {
+		t.Errorf("create_text description must direct named artifacts to upload_file: %q", description)
+	}
+	if description := toolDescriptions["upload_file"]; !strings.Contains(description, "YAML") || !strings.Contains(description, "MIME type") {
+		t.Errorf("upload_file description must identify YAML artifacts and MIME behavior: %q", description)
 	}
 }
 

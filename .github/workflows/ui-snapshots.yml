@@ -35,9 +35,13 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/klipbord-playwright-browsers
         run: npx --yes --package=@playwright/cli@0.1.17 playwright-cli install-browser chromium --only-shell
 
+      - name: Install media fixture tools
+        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
+
       - name: Build and start Klipbord container
         run: |
           mkdir -p .tmp/data
+          sudo chown 10001:10001 .tmp/data
           docker build --tag klipbord:ui-snapshots .
           docker run --detach --name klipbord-ui-snapshots \
             --publish 8080:8080 \
