@@ -33,11 +33,14 @@ type deviceAuthorizationResponse struct {
 }
 
 // DeviceLogin completes an OIDC device authorization flow and returns refreshable credentials.
-func DeviceLogin(ctx context.Context, httpClient *http.Client, profile Profile, notify func(string)) (Credentials, error) {
+func DeviceLogin(ctx context.Context, httpClient *http.Client, profile Profile, notify func(string), debug debugLogger) (Credentials, error) {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
-	discovery, err := discoverOIDC(ctx, httpClient, profile.Issuer)
+	if debug == nil {
+		debug = func(string, ...any) {}
+	}
+	discovery, err := discoverOIDC(ctx, httpClient, profile.Issuer, debug)
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -49,6 +52,7 @@ func DeviceLogin(ctx context.Context, httpClient *http.Client, profile Profile, 
 		scopes = []string{"openid", "profile", "offline_access"}
 	}
 	values := url.Values{"client_id": {profile.ClientID}, "scope": {strings.Join(scopes, " ")}}
+	debug("OIDC device authorization request: POST %s (client_id=%s scopes=%s)", discovery.DeviceAuthorizationEndpoint, profile.ClientID, strings.Join(scopes, " "))
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, discovery.DeviceAuthorizationEndpoint, strings.NewReader(values.Encode()))
 	if err != nil {
 		return Credentials{}, fmt.Errorf("create device authorization request: %w", err)
@@ -60,8 +64,11 @@ func DeviceLogin(ctx context.Context, httpClient *http.Client, profile Profile, 
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return Credentials{}, oidcHTTPError(response)
+		err := oidcHTTPError(response)
+		debug("OIDC device authorization response: %s (%v)", response.Status, err)
+		return Credentials{}, err
 	}
+	debug("OIDC device authorization response: %s", response.Status)
 	var device deviceAuthorizationResponse
 	if err := json.NewDecoder(response.Body).Decode(&device); err != nil {
 		return Credentials{}, fmt.Errorf("decode device authorization response: %w", err)
@@ -85,7 +92,7 @@ func DeviceLogin(ctx context.Context, httpClient *http.Client, profile Profile, 
 			return Credentials{}, ctx.Err()
 		case <-time.After(interval):
 		}
-		credentials, pending, err := exchangeDeviceCode(ctx, httpClient, discovery.TokenEndpoint, profile.ClientID, device.DeviceCode)
+		credentials, pending, err := exchangeDeviceCode(ctx, httpClient, discovery.TokenEndpoint, profile.ClientID, device.DeviceCode, debug)
 		if err != nil {
 			return Credentials{}, err
 		}
@@ -141,7 +148,11 @@ func (client *Client) ensureToken(ctx context.Context) error {
 	return client.store.secrets.Set(client.name, client.credentials)
 }
 
-func discoverOIDC(ctx context.Context, httpClient *http.Client, issuer string) (oidcDiscovery, error) {
+func discoverOIDC(ctx context.Context, httpClient *http.Client, issuer string, debuggers ...debugLogger) (oidcDiscovery, error) {
+	debug := func(string, ...any) {}
+	if len(debuggers) > 0 && debuggers[0] != nil {
+		debug = debuggers[0]
+	}
 	if issuer == "" {
 		return oidcDiscovery{}, errors.New("OIDC issuer is required")
 	}
@@ -149,13 +160,16 @@ func discoverOIDC(ctx context.Context, httpClient *http.Client, issuer string) (
 	if err != nil {
 		return oidcDiscovery{}, fmt.Errorf("create OIDC discovery request: %w", err)
 	}
+	debug("OIDC discovery request: GET %s", request.URL)
 	response, err := httpClient.Do(request)
 	if err != nil {
 		return oidcDiscovery{}, fmt.Errorf("fetch OIDC discovery document: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return oidcDiscovery{}, oidcHTTPError(response)
+		err := oidcHTTPError(response)
+		debug("OIDC discovery response: %s (%v)", response.Status, err)
+		return oidcDiscovery{}, err
 	}
 	var discovery oidcDiscovery
 	if err := json.NewDecoder(response.Body).Decode(&discovery); err != nil {
@@ -164,10 +178,11 @@ func discoverOIDC(ctx context.Context, httpClient *http.Client, issuer string) (
 	if discovery.TokenEndpoint == "" {
 		return oidcDiscovery{}, errors.New("OIDC discovery document does not include a token endpoint")
 	}
+	debug("OIDC discovery response: %s (device_endpoint=%s token_endpoint=%s)", response.Status, discovery.DeviceAuthorizationEndpoint, discovery.TokenEndpoint)
 	return discovery, nil
 }
 
-func exchangeDeviceCode(ctx context.Context, httpClient *http.Client, endpoint, clientID, deviceCode string) (Credentials, bool, error) {
+func exchangeDeviceCode(ctx context.Context, httpClient *http.Client, endpoint, clientID, deviceCode string, debug debugLogger) (Credentials, bool, error) {
 	values := url.Values{
 		"client_id":   {clientID},
 		"device_code": {deviceCode},
@@ -188,14 +203,17 @@ func exchangeDeviceCode(ctx context.Context, httpClient *http.Client, endpoint, 
 		return Credentials{}, false, fmt.Errorf("decode device token response: %w", err)
 	}
 	if token.Error == "authorization_pending" {
+		debug("OIDC device token response: %s (authorization_pending)", response.Status)
 		return Credentials{}, true, nil
 	}
 	if response.StatusCode != http.StatusOK || token.Error != "" {
+		debug("OIDC device token response: %s (error=%s)", response.Status, token.Error)
 		return Credentials{}, false, fmt.Errorf("OIDC device authorization failed: %s", token.Error)
 	}
 	if token.AccessToken == "" {
 		return Credentials{}, false, errors.New("OIDC device authorization did not include an access token")
 	}
+	debug("OIDC device token response: %s (access token received; value redacted)", response.Status)
 	return Credentials{
 		Token:        token.AccessToken,
 		RefreshToken: token.RefreshToken,

@@ -55,6 +55,8 @@ Then open `http://localhost:8080` — drop a file, paste an image, share a snipp
 When you put Klipbord behind Cloudflare Access, an Authentik proxy, or another
 identity-aware reverse proxy, keep the container on loopback or a private Docker
 network. Publishing the container port directly bypasses that access control.
+The container runs as UID/GID `10001`; if you use an existing bind-mounted data
+directory, make that directory writable by that UID/GID before upgrading.
 
 ---
 
@@ -154,6 +156,27 @@ development. `headers` accepts repeated header names and securely prompts for
 their values; `oidc` uses OpenID Connect discovery and refresh tokens.
 Use `kb profile list` and `kb profile use NAME` when you have more than one
 Klipbord connection.
+
+### Authentik app-password fallback
+
+When the Klipbord Authentik proxy provider has HTTP Basic authentication
+enabled, create an **App Password** from your Authentik user credentials page.
+It is distinct from an Authentik API token. Then log in without exposing the
+password in your shell history:
+
+```bash
+kb login --url https://klipbord.example.com \
+  --method authentik-app-password \
+  --username your-authentik-username
+```
+
+`kb` prompts for the app password and stores the resulting Basic authorization
+header in your operating system keychain. For unattended use, set
+`AUTHENTIK_USERNAME` and `AUTHENTIK_APP_PASSWORD` in the calling environment.
+
+Use `--log-level debug` with `kb login` to diagnose discovery or OIDC setup.
+It prints request URLs, response statuses, and OAuth error codes while redacting
+device codes, access tokens, refresh tokens, and configured headers.
 
 ### Version management
 

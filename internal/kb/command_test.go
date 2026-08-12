@@ -1,6 +1,7 @@
 package kb
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -36,6 +37,49 @@ func TestAllowsHTTPFallbackOnlyForLocalTargets(t *testing.T) {
 	}
 	if allowsHTTPFallback("https://kb.example.com") {
 		t.Fatal("public hosts must not fall back to HTTP")
+	}
+}
+
+func TestProfileAllowsPrivateNetworkHTTPAfterFallback(t *testing.T) {
+	for _, serverURL := range []string{"http://klipbord.local", "http://192.168.1.10"} {
+		if err := validateProfile(Profile{URL: serverURL, Method: "none"}); err != nil {
+			t.Errorf("validateProfile(%q) = %v, want local HTTP profile to be accepted", serverURL, err)
+		}
+	}
+	if err := validateProfile(Profile{URL: "http://klipbord.example.com", Method: "none"}); err == nil {
+		t.Fatal("public HTTP profile must be rejected")
+	}
+}
+
+func TestDebugLoggerOnlyWritesAtDebugLevel(t *testing.T) {
+	var quiet, debug strings.Builder
+	newDebugLogger("info", &quiet)("request: %s", "hidden")
+	newDebugLogger("debug", &debug)("request: %s", "safe")
+	if quiet.Len() != 0 {
+		t.Fatalf("non-debug logger wrote %q", quiet.String())
+	}
+	if got, want := debug.String(), "[debug] request: safe\n"; got != want {
+		t.Fatalf("debug logger = %q, want %q", got, want)
+	}
+}
+
+func TestAuthentikAppPasswordCredentialsUseBasicAuthentication(t *testing.T) {
+	t.Setenv("AUTHENTIK_USERNAME", "alex")
+	t.Setenv("AUTHENTIK_APP_PASSWORD", "app-password")
+	credentials, err := authentikAppPasswordCredentials("", &strings.Builder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := credentials.Headers["Authorization"]
+	if !strings.HasPrefix(value, "Basic ") {
+		t.Fatalf("Authorization = %q, want Basic authentication", value)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(value, "Basic "))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(decoded) != "alex:app-password" {
+		t.Fatalf("decoded authorization = %q", decoded)
 	}
 }
 
