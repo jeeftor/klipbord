@@ -5141,21 +5141,20 @@ function loadTextPreviews(items) {
           previews.forEach(el => { el.textContent = '(file missing)'; el.style.opacity = '0.4'; });
           return;
         }
-        // Cache the full content so search can match on paste content, not
-        // just the truncated preview.
+        // Cache the full content so search can match on paste content, and
+        // render it so the fixed-height card can show every line that fits.
         textContentCache[item.id] = data.content || '';
         previews.forEach(el => {
-          const preview = data.content.substring(0, 200);
           const lang = detectLang(item.name, data.content);
           if (window.hljs) {
             const code = document.createElement('code');
             code.className = lang ? `language-${lang}` : 'language-plaintext';
-            code.textContent = preview;
+            code.textContent = data.content;
             el.innerHTML = '';
             el.appendChild(code);
             hljs.highlightElement(code);
           } else {
-            el.textContent = preview;
+            el.textContent = data.content;
           }
         });
         // If the user is actively searching, re-filter now that this item's
