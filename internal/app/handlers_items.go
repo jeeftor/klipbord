@@ -221,6 +221,7 @@ func apiTextHandler(w http.ResponseWriter, r *http.Request) {
 		expires = time.Now().Add(ttl)
 	}
 	addItem(Item{ID: id, Name: name, Type: "text", Size: int64(len(request.Content)), Created: time.Now(), Expires: expires, TTL: ttlString(ttl)})
+	logUpload(r, id, name, int64(len(request.Content)), "text")
 	writeJSON(w, map[string]interface{}{"id": id, "name": name, "url": linkURL(id, name)})
 }
 
