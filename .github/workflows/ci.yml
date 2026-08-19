@@ -154,7 +154,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kb-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/kb_*
+          path: dist/kb-*
           if-no-files-found: error
 
   release-kb:
