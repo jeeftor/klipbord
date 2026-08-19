@@ -157,7 +157,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kb-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/kb-*
+          path: dist/kb*
           if-no-files-found: error
 
   release-kb:
@@ -175,7 +175,7 @@ jobs:
       - name: Download kb archives
         uses: actions/download-artifact@v4
         with:
-          pattern: kb-*
+          pattern: kb*
           path: dist
           merge-multiple: true
 
@@ -185,10 +185,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp install.sh dist/install.sh
-          sha256sum dist/kb-*.tar.gz dist/kb-*.zip > dist/kb_checksums.txt
-          echo "hashes=$(sha256sum dist/kb-*.tar.gz dist/kb-*.zip | base64 -w0)" >> $GITHUB_OUTPUT
+          sha256sum dist/kb*.tar.gz dist/kb*.zip > dist/kb_checksums.txt
+          echo "hashes=$(sha256sum dist/kb*.tar.gz dist/kb*.zip | base64 -w0)" >> $GITHUB_OUTPUT
           gh release create "${GITHUB_REF_NAME}" --generate-notes --target master || true
-          gh release upload "${GITHUB_REF_NAME}" dist/kb-*.tar.gz dist/kb-*.zip dist/kb_checksums.txt dist/install.sh --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/kb*.tar.gz dist/kb*.zip dist/kb_checksums.txt dist/install.sh --clobber
 
   # Guard job for provenance-kb: GitHub Actions can't put an if: condition
   # directly on a reusable workflow (uses:) job — it fails at startup with
@@ -238,7 +238,7 @@ jobs:
       - name: Download kb archives
         uses: actions/download-artifact@v4
         with:
-          pattern: kb-*
+          pattern: kb*
           path: dist
           merge-multiple: true
 
@@ -249,10 +249,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for f in dist/kb-*.tar.gz dist/kb-*.zip; do
+          for f in dist/kb*.tar.gz dist/kb*.zip; do
             cosign sign-blob --yes --output-signature="${f}.sig" --output-certificate="${f}.pem" "$f"
           done
-          gh release upload "${GITHUB_REF_NAME}" dist/kb-*.sig dist/kb-*.pem --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/kb*.sig dist/kb*.pem --clobber
 
   provenance:
     needs: [build]
