@@ -1356,7 +1356,7 @@ body {
     <div class="unified-input" id="unifiedInput">
       <textarea class="unified-input-textarea" id="textInput" placeholder="Type or paste text here... (Ctrl+Enter to submit)&#10;&#10;Or browse files below · Ctrl+V to paste image · drag & drop"></textarea>
       <div class="unified-input-bar">
-        <span class="bar-hint"><strong>Ctrl+V</strong> paste · drag & drop</span>
+        <span class="bar-hint"><strong>Ctrl+V</strong> paste · drag files or folders</span>
         <button class="btn btn-secondary camera-btn" type="button" onclick="document.getElementById('fileInput').click()" aria-label="Browse files to upload">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           Browse files
@@ -2421,10 +2421,107 @@ const unifiedInput = document.getElementById('unifiedInput');
   unifiedInput.addEventListener(ev, () => unifiedInput.classList.remove('dragover'));
 });
 unifiedInput.addEventListener('drop', e => {
-  for (const file of e.dataTransfer.files) {
-    uploadFile(file);
-  }
+  handleDroppedItems(e.dataTransfer);
 });
+
+async function handleDroppedItems(dataTransfer) {
+  const entries = [...(dataTransfer.items || [])]
+    .map(item => item.webkitGetAsEntry?.())
+    .filter(Boolean);
+  if (!entries.length) {
+    for (const file of dataTransfer.files) uploadFile(file);
+    return;
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      await archiveDroppedFolder(entry);
+    } else if (entry.isFile) {
+      try {
+        uploadFile(await droppedEntryFile(entry));
+      } catch {
+        showToast(`Could not read ${entry.name}`, true);
+      }
+    }
+  }
+}
+
+function droppedEntryFile(entry) {
+  return new Promise((resolve, reject) => entry.file(resolve, reject));
+}
+
+function readDroppedDirectory(reader) {
+  return new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+}
+
+async function collectDroppedFolder(entry) {
+  const files = [];
+  const directories = [];
+  async function visit(current, currentPath) {
+    if (current.isFile) {
+      files.push({ file: await droppedEntryFile(current), path: currentPath });
+      return;
+    }
+    directories.push(currentPath);
+    const reader = current.createReader();
+    while (true) {
+      const children = await readDroppedDirectory(reader);
+      if (!children.length) return;
+      for (const child of children) await visit(child, `${currentPath}/${child.name}`);
+    }
+  }
+  await visit(entry, entry.name);
+  return { files, directories };
+}
+
+async function archiveDroppedFolder(entry) {
+  let folder;
+  try {
+    folder = await collectDroppedFolder(entry);
+  } catch {
+    showToast(`Could not read folder ${entry.name}`, true);
+    return;
+  }
+  const fileCount = folder.files.length;
+  if (!confirm(`Archive “${entry.name}” (${fileCount} file${fileCount === 1 ? '' : 's'}) as a ZIP before upload?`)) {
+    return;
+  }
+  uploadFolderArchive(entry.name, folder);
+}
+
+function uploadFolderArchive(name, folder) {
+  const totalSize = folder.files.reduce((total, entry) => total + entry.file.size, 0);
+  const ui = addUploadUI(`${name}.zip`, totalSize);
+  requestWakeLock();
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('ttl', document.getElementById('ttl').value);
+  for (const directory of folder.directories) formData.append('directory', directory);
+  for (const entry of folder.files) {
+    formData.append('path', entry.path);
+    formData.append('file', entry.file, entry.file.name);
+  }
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${API}/upload/archive`);
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) updateUploadProgress(ui, e.loaded, e.total);
+  };
+  xhr.onload = () => {
+    releaseWakeLock();
+    try {
+      const data = JSON.parse(xhr.responseText);
+      if (data.error) uploadError(ui, data.error);
+      else uploadDone(ui, data);
+    } catch {
+      uploadError(ui, 'Invalid server response');
+    }
+  };
+  xhr.onerror = () => {
+    releaseWakeLock();
+    uploadError(ui, 'Network error');
+  };
+  xhr.send(formData);
+}
 
 // Click on the bar area (not textarea/buttons) → open file picker
 unifiedInput.querySelector('.unified-input-bar').addEventListener('click', (e) => {

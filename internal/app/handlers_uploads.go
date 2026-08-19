@@ -1,6 +1,7 @@
 package app
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,8 +17,9 @@ import (
 )
 
 const (
-	chunkSize      = 5 * 1024 * 1024
-	chunkStaleTime = time.Hour
+	chunkSize             = 5 * 1024 * 1024
+	chunkStaleTime        = time.Hour
+	maxArchiveFolderFiles = 10000
 )
 
 // init registers canonical MIME types for common audio/video extensions so
@@ -94,6 +97,149 @@ func apiUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	addUploadedFile(id, header.Filename, mimeType, written, ttl)
 	writeJSON(w, map[string]interface{}{"id": id, "name": header.Filename, "url": linkURL(id, header.Filename)})
+}
+
+// apiArchiveFolderHandler creates a ZIP archive from files and relative paths
+// supplied by the browser for a dropped folder.
+func apiArchiveFolderHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
+	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
+		http.Error(w, `{"error":"archive too large or invalid"}`, http.StatusBadRequest)
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	name, err := archiveFilename(r.FormValue("name"))
+	if err != nil {
+		http.Error(w, `{"error":"invalid archive name"}`, http.StatusBadRequest)
+		return
+	}
+	files := r.MultipartForm.File["file"]
+	paths := r.MultipartForm.Value["path"]
+	directories := r.MultipartForm.Value["directory"]
+	if len(files) != len(paths) || len(files) > maxArchiveFolderFiles || (len(files) == 0 && len(directories) == 0) {
+		http.Error(w, `{"error":"invalid archive contents"}`, http.StatusBadRequest)
+		return
+	}
+
+	id, err := genID()
+	if err != nil {
+		http.Error(w, `{"error":"failed to generate item ID"}`, http.StatusInternalServerError)
+		return
+	}
+	temporary, err := os.CreateTemp(filepath.Join(dataDir, fileDir), id+".archive-*")
+	if err != nil {
+		http.Error(w, `{"error":"failed to create archive"}`, http.StatusInternalServerError)
+		return
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+
+	archive := zip.NewWriter(temporary)
+	seenPaths := make(map[string]struct{}, len(files)+len(directories))
+	for _, directory := range directories {
+		archivePath, err := cleanArchivePath(directory)
+		if err != nil || !addArchivePath(seenPaths, archivePath+"/") {
+			_ = archive.Close()
+			_ = temporary.Close()
+			http.Error(w, `{"error":"invalid archive path"}`, http.StatusBadRequest)
+			return
+		}
+		header := &zip.FileHeader{Name: archivePath + "/"}
+		header.SetMode(os.ModeDir | 0755)
+		if _, err := archive.CreateHeader(header); err != nil {
+			_ = archive.Close()
+			_ = temporary.Close()
+			http.Error(w, `{"error":"failed to create archive"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+	for index, header := range files {
+		archivePath, err := cleanArchivePath(paths[index])
+		if err != nil || !addArchivePath(seenPaths, archivePath) {
+			_ = archive.Close()
+			_ = temporary.Close()
+			http.Error(w, `{"error":"invalid archive path"}`, http.StatusBadRequest)
+			return
+		}
+		source, err := header.Open()
+		if err != nil {
+			_ = archive.Close()
+			_ = temporary.Close()
+			http.Error(w, `{"error":"failed to read archive file"}`, http.StatusBadRequest)
+			return
+		}
+		entry, err := archive.CreateHeader(&zip.FileHeader{Name: archivePath, Method: zip.Deflate})
+		if err == nil {
+			_, err = io.Copy(entry, source)
+		}
+		_ = source.Close()
+		if err != nil {
+			_ = archive.Close()
+			_ = temporary.Close()
+			http.Error(w, `{"error":"failed to create archive"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := archive.Close(); err != nil {
+		_ = temporary.Close()
+		http.Error(w, `{"error":"failed to create archive"}`, http.StatusInternalServerError)
+		return
+	}
+	if err := temporary.Close(); err != nil {
+		http.Error(w, `{"error":"failed to create archive"}`, http.StatusInternalServerError)
+		return
+	}
+
+	destination := filepath.Join(dataDir, fileDir, id)
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		http.Error(w, `{"error":"failed to store archive"}`, http.StatusInternalServerError)
+		return
+	}
+	info, err := os.Stat(destination)
+	if err != nil {
+		http.Error(w, `{"error":"failed to store archive"}`, http.StatusInternalServerError)
+		return
+	}
+	temporaryPath = ""
+	ttl, err := parseTTL(r.FormValue("ttl"))
+	if err != nil {
+		ttl = defaultTTL
+	}
+	addUploadedFile(id, name, "application/zip", info.Size(), ttl)
+	writeJSON(w, map[string]interface{}{"id": id, "name": name, "url": linkURL(id, name)})
+}
+
+// archiveFilename validates a user-provided folder name for the generated ZIP.
+func archiveFilename(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || filepath.Base(name) != name || strings.ContainsRune(name, '\x00') {
+		return "", fmt.Errorf("invalid archive name")
+	}
+	return name + ".zip", nil
+}
+
+// cleanArchivePath normalizes a browser-provided relative path for a ZIP entry.
+func cleanArchivePath(value string) (string, error) {
+	value = strings.ReplaceAll(value, "\\", "/")
+	cleaned := path.Clean(value)
+	if cleaned == "." || strings.HasPrefix(cleaned, "../") || strings.HasPrefix(cleaned, "/") || strings.ContainsRune(cleaned, '\x00') {
+		return "", fmt.Errorf("invalid archive path")
+	}
+	return cleaned, nil
+}
+
+// addArchivePath records an archive entry and rejects duplicate paths.
+func addArchivePath(paths map[string]struct{}, value string) bool {
+	if _, exists := paths[value]; exists {
+		return false
+	}
+	paths[value] = struct{}{}
+	return true
 }
 
 func addUploadedFile(id, name, mimeType string, size int64, ttl time.Duration) {

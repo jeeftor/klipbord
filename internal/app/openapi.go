@@ -87,6 +87,19 @@ func buildOpenAPISpec() map[string]interface{} {
 					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Upload successful"}},
 				},
 			},
+			"/api/upload/archive": map[string]interface{}{
+				"post": map[string]interface{}{
+					"summary": "Archive a dropped folder as a ZIP file",
+					"requestBody": map[string]interface{}{"content": map[string]interface{}{"multipart/form-data": map[string]interface{}{"schema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{
+						"name":      map[string]interface{}{"type": "string", "description": "Folder name"},
+						"path":      map[string]interface{}{"type": "string", "description": "Relative path for each file"},
+						"directory": map[string]interface{}{"type": "string", "description": "Relative empty-directory path"},
+						"file":      map[string]interface{}{"type": "string", "format": "binary"},
+						"ttl":       map[string]interface{}{"type": "string", "description": "1h, 1d, 7d, 30d, never"},
+					}}}}},
+					"responses": map[string]interface{}{"200": map[string]interface{}{"description": "Archive uploaded"}},
+				},
+			},
 			"/api/upload/init": map[string]interface{}{
 				"post": map[string]interface{}{
 					"summary": "Initialize chunked upload",
