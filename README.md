@@ -24,6 +24,7 @@ Drop files, paste text, process images with vision LLMs — all through a slick 
 | | |
 |--|--|
 | **Web UI** | Ctrl+V image paste, drag-and-drop, text snippets, syntax highlighting, search |
+| **Folder Archives** | Confirm a dropped folder to have the server create and upload one ZIP archive |
 | **REST API** | List, upload, download, delete, pin files and text snippets |
 | **MCP Server** | 20 tool calls for AI agents (Claude Code, Hermes, Devin, etc.) |
 | **Vision Pre-processing** | Auto-OCR/describe uploaded images via any OpenAI-compatible vision LLM |

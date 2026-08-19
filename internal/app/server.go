@@ -155,6 +155,7 @@ func NewHandler() *http.ServeMux {
 	mux.HandleFunc("/api/text", apiTextHandler)
 	mux.HandleFunc("/api/text/", apiTextItemHandler)
 	mux.HandleFunc("/api/upload", apiUploadHandler)
+	mux.HandleFunc("/api/upload/archive", apiArchiveFolderHandler)
 	mux.HandleFunc("/api/upload/init", apiUploadInitHandler)
 	mux.HandleFunc("/api/upload/chunk", apiUploadChunkHandler)
 	mux.HandleFunc("/api/upload/status/", apiUploadStatusHandler)

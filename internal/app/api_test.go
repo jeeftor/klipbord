@@ -1,6 +1,7 @@
 package app
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -35,6 +36,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, string) {
 	mux.HandleFunc("/api/text/", apiTextItemHandler)
 	mux.HandleFunc("/link/", directLinkHandler)
 	mux.HandleFunc("/api/upload", apiUploadHandler)
+	mux.HandleFunc("/api/upload/archive", apiArchiveFolderHandler)
 	mux.HandleFunc("/api/upload/init", apiUploadInitHandler)
 	mux.HandleFunc("/api/upload/chunk/", apiUploadChunkHandler)
 	mux.HandleFunc("/api/upload/complete", apiUploadCompleteHandler)
@@ -438,6 +440,102 @@ func TestFileUpload(t *testing.T) {
 	}
 	if !found {
 		t.Error("uploaded file not found in list")
+	}
+}
+
+func TestFolderArchiveUpload(t *testing.T) {
+	server, dir := setupTestServer(t)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.WriteField("name", "project")
+	writer.WriteField("ttl", "never")
+	writer.WriteField("directory", "project")
+	writer.WriteField("directory", "project/empty")
+	writer.WriteField("path", "project/readme.txt")
+	file, err := writer.CreateFormFile("file", "readme.txt")
+	if err != nil {
+		t.Fatalf("create archive file: %v", err)
+	}
+	_, _ = file.Write([]byte("folder upload"))
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/upload/archive", body)
+	if err != nil {
+		t.Fatalf("create archive request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("upload archive: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("archive status = %d", resp.StatusCode)
+	}
+	result := parseJSON(t, resp)
+	id := result["id"].(string)
+	if result["name"] != "project.zip" {
+		t.Errorf("archive name = %q", result["name"])
+	}
+
+	archive, err := zip.OpenReader(filepath.Join(dir, fileDir, id))
+	if err != nil {
+		t.Fatalf("open archive: %v", err)
+	}
+	defer archive.Close()
+	entries := make(map[string]*zip.File)
+	for _, entry := range archive.File {
+		entries[entry.Name] = entry
+	}
+	if _, ok := entries["project/empty/"]; !ok {
+		t.Error("archive does not preserve empty directory")
+	}
+	readme, ok := entries["project/readme.txt"]
+	if !ok {
+		t.Fatal("archive does not contain uploaded file")
+	}
+	content, err := readme.Open()
+	if err != nil {
+		t.Fatalf("open archived file: %v", err)
+	}
+	defer content.Close()
+	data, err := io.ReadAll(content)
+	if err != nil {
+		t.Fatalf("read archived file: %v", err)
+	}
+	if string(data) != "folder upload" {
+		t.Errorf("archived content = %q", data)
+	}
+}
+
+func TestFolderArchiveRejectsTraversalPath(t *testing.T) {
+	server, _ := setupTestServer(t)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.WriteField("name", "project")
+	writer.WriteField("path", "../outside.txt")
+	file, err := writer.CreateFormFile("file", "outside.txt")
+	if err != nil {
+		t.Fatalf("create archive file: %v", err)
+	}
+	_, _ = file.Write([]byte("blocked"))
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/upload/archive", body)
+	if err != nil {
+		t.Fatalf("create archive request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("upload archive: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("archive traversal status = %d", resp.StatusCode)
 	}
 }
 
