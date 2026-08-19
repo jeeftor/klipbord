@@ -119,9 +119,11 @@ func serveDirectLink(w http.ResponseWriter, r *http.Request, rest string) {
 		if r.Method != http.MethodHead {
 			_, _ = w.Write(data)
 		}
+		logDownload(r, item, disposition)
 		return
 	}
 	w.Header().Set("Content-Type", item.MimeType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disposition, item.Name))
+	logDownload(r, item, disposition)
 	http.ServeFile(w, r, filepath.Join(dataDir, fileDir, id))
 }

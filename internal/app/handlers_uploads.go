@@ -93,6 +93,7 @@ func apiUploadHandler(w http.ResponseWriter, r *http.Request) {
 		mimeType = detectMimeType(mimeType, header.Filename, path)
 	}
 	addUploadedFile(id, header.Filename, mimeType, written, ttl)
+	logUpload(r, id, header.Filename, written, "multipart")
 	writeJSON(w, map[string]interface{}{"id": id, "name": header.Filename, "url": linkURL(id, header.Filename)})
 }
 
@@ -336,6 +337,7 @@ func apiUploadCompleteHandler(w http.ResponseWriter, r *http.Request) {
 		ttl = defaultTTL
 	}
 	addUploadedFile(id, metadata.Filename, mimeType, written, ttl)
+	logUpload(r, id, metadata.Filename, written, "chunked")
 	writeJSON(w, map[string]interface{}{"id": id, "name": metadata.Filename, "url": linkURL(id, metadata.Filename)})
 }
 
