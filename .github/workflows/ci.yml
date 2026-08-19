@@ -146,12 +146,14 @@ jobs:
           if [ "${{ matrix.archive }}" = tar.gz ]; then
             tar -C dist -czf "dist/kb-server_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" kb-server
             tar -C dist -czf "dist/kb-cli_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" kb-cli
+            tar -C dist -czf "dist/kb_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" kb-server kb-cli
           else
             zip -j "dist/kb-server_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "dist/kb-server${{ matrix.extension }}"
             zip -j "dist/kb-cli_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "dist/kb-cli${{ matrix.extension }}"
+            zip -j "dist/kb_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "dist/kb-server${{ matrix.extension }}" "dist/kb-cli${{ matrix.extension }}"
           fi
 
-      - name: Upload server and CLI archives
+      - name: Upload release archives
         uses: actions/upload-artifact@v4
         with:
           name: kb-${{ matrix.goos }}-${{ matrix.goarch }}

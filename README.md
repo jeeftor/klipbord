@@ -124,7 +124,9 @@ curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.
 
 **Manual install:** Download the matching `kb-cli` archive from the
 [GitHub releases page](https://github.com/jeeftor/klipbord/releases), extract
-it, and move the `kb-cli` binary to your PATH.
+it, and move the `kb-cli` binary to your PATH. If you want both programs on a
+USB drive or a single host, download the combined `kb_<os>_<arch>` archive; it
+contains both `kb-server` and `kb-cli`.
 
 Once installed, run `kb-cli login`. Profile settings are stored in your normal
 config directory while tokens and header values stay in your operating system
