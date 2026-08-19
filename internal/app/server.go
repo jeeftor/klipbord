@@ -2,9 +2,11 @@ package app
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -48,8 +50,11 @@ func Run(appVersion string, staticAssets Assets) {
 	version = appVersion
 	assets = staticAssets
 	dataDir = envOr("DATA_DIR", defaultDataDir)
-	baseURL = envOr("BASE_URL", defaultBaseURL)
 	port := envOr("PORT", defaultPort)
+	baseURL = envOr("BASE_URL", "")
+	if baseURL == "" {
+		baseURL = detectedBaseURL(port)
+	}
 	visionRequestTimeout = durationEnv("VISION_REQUEST_TIMEOUT", 120*time.Second)
 	modelUnloadTimeout = durationEnv("VISION_UNLOAD_TIMEOUT", 120*time.Second)
 
@@ -79,6 +84,46 @@ func Run(appVersion string, staticAssets Assets) {
 	if err := http.ListenAndServe(":"+port, NewHandler()); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+// detectedBaseURL chooses a reachable LAN address for links when BASE_URL is unset.
+// Deployments behind a reverse proxy should set BASE_URL explicitly.
+func detectedBaseURL(port string) string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return defaultBaseURL
+	}
+
+	addresses := make([]net.Addr, 0)
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		interfaceAddresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		addresses = append(addresses, interfaceAddresses...)
+	}
+	return baseURLFromAddresses(port, addresses)
+}
+
+// baseURLFromAddresses derives a base URL from eligible interface addresses.
+func baseURLFromAddresses(port string, addresses []net.Addr) string {
+	candidates := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		ip, _, err := net.ParseCIDR(address.String())
+		if err != nil || ip.To4() == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			continue
+		}
+		candidates = append(candidates, ip.String())
+	}
+	if len(candidates) == 0 {
+		return "http://localhost:" + port
+	}
+
+	sort.Strings(candidates)
+	return "http://" + candidates[0] + ":" + port
 }
 
 // NewHandler returns the HTTP handler for Klipbord's web UI and API.

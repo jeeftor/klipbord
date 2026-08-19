@@ -18,7 +18,6 @@ COPY entrypoint.sh /entrypoint.sh
 
 ENV PORT=8080
 ENV DATA_DIR=/data
-ENV BASE_URL=http://localhost:8080
 ENV MAX_UPLOAD_MB=2048
 
 RUN addgroup -S -g 10001 klipbord \

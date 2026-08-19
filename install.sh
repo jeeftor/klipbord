@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
-# install.sh — installer for the `kb` CLI from klipbord GitHub releases.
+# install.sh — installer for Klipbord release binaries.
 #
 # Usage:
 #   curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh | sh
 #
 # Flags:
 #   --version vX.Y.Z      Install a specific release version (default: latest)
-#   --install-dir /path   Override the install directory for the `kb` binary
+#   --component cli|server Install the CLI (default) or server binary
+#   --install-dir /path   Override the install directory
 #
 # The script:
 #   1. Detects OS (darwin/linux) and arch (arm64/amd64)
 #   2. Resolves the latest release tag (or uses the requested one)
-#   3. Downloads the matching `kb_{os}_{arch}.tar.gz` archive
+#   3. Downloads the matching component archive
 #   4. Downloads `kb_checksums.txt` and verifies the archive SHA256
 #   5. Optionally verifies the cosign signature if `cosign` is installed
-#   6. Extracts and installs the `kb` binary
+#   6. Extracts and installs the requested binary
 #   7. Warns if the install dir isn't on $PATH
 
 set -eu
@@ -31,7 +32,8 @@ fi
 # ---------------------------------------------------------------------------
 OWNER="jeeftor"
 REPO="klipbord"
-BINARY_NAME="kb"
+COMPONENT="cli"
+BINARY_NAME=""
 GITHUB_BASE="https://github.com/${OWNER}/${REPO}"
 
 # Defaults (may be overridden by flags)
@@ -86,13 +88,23 @@ while [ $# -gt 0 ]; do
             INSTALL_DIR="${1#*=}"
             shift
             ;;
+        --component)
+            [ $# -ge 2 ] || die "--component requires cli or server"
+            COMPONENT="$2"
+            shift 2
+            ;;
+        --component=*)
+            COMPONENT="${1#*=}"
+            shift
+            ;;
         -h|--help)
             cat <<EOF
 Usage: install.sh [options]
 
 Options:
+  --component cli|server Install the CLI (default) or server binary
   --version vX.Y.Z      Install a specific release version (default: latest)
-  --install-dir /path   Override the install directory for the kb binary
+  --install-dir /path   Override the install directory
   -h, --help            Show this help message
 EOF
             exit 0
@@ -102,6 +114,11 @@ EOF
             ;;
     esac
 done
+
+case "$COMPONENT" in
+    cli|server) BINARY_NAME="kb-${COMPONENT}" ;;
+    *) die "--component must be cli or server" ;;
+esac
 
 # ---------------------------------------------------------------------------
 # Detect OS and architecture
@@ -159,7 +176,7 @@ log "Install directory: ${INSTALL_DIR}"
 # Prepare a temp working directory
 # ---------------------------------------------------------------------------
 TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t kb-install)"
-ARCHIVE_NAME="kb_${OS}_${ARCH}.tar.gz"
+ARCHIVE_NAME="${BINARY_NAME}_${OS}_${ARCH}.tar.gz"
 ARCHIVE_PATH="${TMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUMS_PATH="${TMP_DIR}/kb_checksums.txt"
 
@@ -242,7 +259,7 @@ fi
 log "Extracting archive..."
 tar -C "$TMP_DIR" -xzf "$ARCHIVE_PATH"
 
-# The archive should contain a top-level `kb` binary.
+# The archive should contain the requested top-level binary.
 BINARY_SRC="${TMP_DIR}/${BINARY_NAME}"
 [ -f "$BINARY_SRC" ] || die "binary '${BINARY_NAME}' not found in archive"
 

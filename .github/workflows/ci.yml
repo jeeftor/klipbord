@@ -132,21 +132,25 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - name: Build kb
+      - name: Build server and CLI
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist
           go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
-            -o "dist/kb${{ matrix.extension }}" ./cmd/kb
+            -o "dist/kb-server${{ matrix.extension }}" .
+          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "dist/kb-cli${{ matrix.extension }}" ./cmd/kb
           if [ "${{ matrix.archive }}" = tar.gz ]; then
-            tar -C dist -czf "dist/kb_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" kb
+            tar -C dist -czf "dist/kb-server_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" kb-server
+            tar -C dist -czf "dist/kb-cli_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" kb-cli
           else
-            zip -j "dist/kb_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "dist/kb${{ matrix.extension }}"
+            zip -j "dist/kb-server_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "dist/kb-server${{ matrix.extension }}"
+            zip -j "dist/kb-cli_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "dist/kb-cli${{ matrix.extension }}"
           fi
 
-      - name: Upload kb archive
+      - name: Upload server and CLI archives
         uses: actions/upload-artifact@v4
         with:
           name: kb-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -178,10 +182,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp install.sh dist/install.sh
-          sha256sum dist/kb_* > dist/kb_checksums.txt
-          echo "hashes=$(sha256sum dist/kb_* | base64 -w0)" >> $GITHUB_OUTPUT
+          sha256sum dist/kb-*.tar.gz dist/kb-*.zip > dist/kb_checksums.txt
+          echo "hashes=$(sha256sum dist/kb-*.tar.gz dist/kb-*.zip | base64 -w0)" >> $GITHUB_OUTPUT
           gh release create "${GITHUB_REF_NAME}" --generate-notes --target master || true
-          gh release upload "${GITHUB_REF_NAME}" dist/kb_* dist/install.sh --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/kb-*.tar.gz dist/kb-*.zip dist/kb_checksums.txt dist/install.sh --clobber
 
   # Guard job for provenance-kb: GitHub Actions can't put an if: condition
   # directly on a reusable workflow (uses:) job — it fails at startup with
@@ -242,10 +246,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for f in dist/kb_*; do
+          for f in dist/kb-*.tar.gz dist/kb-*.zip; do
             cosign sign-blob --yes --output-signature="${f}.sig" --output-certificate="${f}.pem" "$f"
           done
-          gh release upload "${GITHUB_REF_NAME}" dist/kb_*.sig dist/kb_*.pem --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/kb-*.sig dist/kb-*.pem --clobber
 
   provenance:
     needs: [build]

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,6 +27,19 @@ func setupTestDir(t *testing.T) string {
 	maxUploadMB = defaultMaxUploadMB
 	maxUploadBytes = int64(maxUploadMB) * 1024 * 1024
 	return dir
+}
+
+func TestDetectedBaseURL(t *testing.T) {
+	addresses := []net.Addr{
+		&net.IPNet{IP: net.ParseIP("127.0.0.1"), Mask: net.CIDRMask(8, 32)},
+		&net.IPNet{IP: net.ParseIP("192.168.1.42"), Mask: net.CIDRMask(24, 32)},
+	}
+	if got := baseURLFromAddresses("8080", addresses); got != "http://192.168.1.42:8080" {
+		t.Errorf("baseURLFromAddresses() = %q", got)
+	}
+	if got := baseURLFromAddresses("9000", nil); got != "http://localhost:9000" {
+		t.Errorf("baseURLFromAddresses() fallback = %q", got)
+	}
 }
 
 func teardownTestDir(t *testing.T, dir string) {
