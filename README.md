@@ -67,7 +67,7 @@ UI is embedded and item data is stored under `DATA_DIR`. Install it with:
 curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh \
   | sh -s -- --component server
 
-DATA_DIR=./data PORT=8080 kb-server
+kb-server
 ```
 
 When `BASE_URL` is unset, `kb-server` selects an active non-loopback IPv4
@@ -75,6 +75,12 @@ address for generated LAN links. Set `BASE_URL` explicitly for reverse proxies,
 TLS, or hosts with multiple network addresses. Install `ffmpeg` on the host if
 you want media metadata probing; all core storage and sharing features need no
 other runtime dependency.
+
+Use `kb-server --help` to see its runtime options. For example:
+
+```bash
+kb-server --data-dir /srv/klipbord --port 8080 --base-url https://klipbord.example.com
+```
 
 ---
 
@@ -223,7 +229,7 @@ files. If a newer version is available, it prints a notice to stderr
 | Env Var | Default | Description |
 |---------|---------|-------------|
 | `PORT` | `8080` | HTTP port |
-| `DATA_DIR` | `/data` | Storage directory |
+| `DATA_DIR` | `./data` | Storage directory (Docker sets this to `/data`) |
 | `BASE_URL` | Active LAN IPv4 address, or `http://localhost:8080` | Public URL for generating links; set explicitly for proxies/TLS/multi-homed hosts |
 | `MAX_UPLOAD_MB` | `2048` | Max upload size in MB |
 | `VISION_ENABLED` | `true` | Enable automatic image analysis on upload |

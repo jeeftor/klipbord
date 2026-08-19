@@ -8,5 +8,5 @@ if [ -d /data ]; then
     chown -R 10001:10001 /data
 fi
 
-# Drop privileges and run the main binary as the klipbord user
-exec su-exec 10001:10001 /klipbord "$@"
+# Drop privileges and run the configured command as the klipbord user.
+exec su-exec 10001:10001 "$@"

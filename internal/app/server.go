@@ -26,7 +26,7 @@ var assets Assets
 
 const (
 	defaultPort        = "8080"
-	defaultDataDir     = "/data"
+	defaultDataDir     = "./data"
 	defaultBaseURL     = "http://localhost:8080"
 	defaultMaxUploadMB = 2048
 )
