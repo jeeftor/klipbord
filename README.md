@@ -58,26 +58,44 @@ network. Publishing the container port directly bypasses that access control.
 The container runs as UID/GID `10001`; if you use an existing bind-mounted data
 directory, make that directory writable by that UID/GID before upgrading.
 
+### Native server binary
+
+Klipbord also ships as a native server binary; Docker is not required. The web
+UI is embedded and item data is stored under `DATA_DIR`. Install it with:
+
+```bash
+curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh \
+  | sh -s -- --component server
+
+DATA_DIR=./data PORT=8080 kb-server
+```
+
+When `BASE_URL` is unset, `kb-server` selects an active non-loopback IPv4
+address for generated LAN links. Set `BASE_URL` explicitly for reverse proxies,
+TLS, or hosts with multiple network addresses. Install `ffmpeg` on the host if
+you want media metadata probing; all core storage and sharing features need no
+other runtime dependency.
+
 ---
 
-## `kb` Command-Line Client
+## `kb-cli` Command-Line Client
 
-`kb` is the terminal companion for Klipbord. It reads standard input as a text
+`kb-cli` is the terminal companion for Klipbord. It reads standard input as a text
 snippet and uploads file arguments directly:
 
 ```bash
-cat a.txt | kb
-kb screenshot.png report.pdf
-kb list
-kb pin ITEM_ID
-kb get ITEM_ID
-kb rm ITEM_ID
+cat a.txt | kb-cli
+kb-cli screenshot.png report.pdf
+kb-cli list
+kb-cli pin ITEM_ID
+kb-cli get ITEM_ID
+kb-cli rm ITEM_ID
 ```
 
 Uploads print their share URL to standard output, so they compose cleanly with
 shell scripts. Use `--json` when a script needs item metadata.
 
-### Installing `kb`
+### Installing `kb-cli`
 
 **One-liner (macOS/Linux):**
 ```bash
@@ -86,7 +104,7 @@ curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.
 
 The installer detects your OS/arch, downloads the matching binary, verifies
 the SHA256 checksum, and optionally verifies the cosign signature if cosign
-is installed. It installs to `~/.local/bin/kb` (or `/usr/local/bin/kb` as root).
+is installed. It installs to `~/.local/bin/kb-cli` (or `/usr/local/bin/kb-cli` as root).
 
 Flags:
 ```bash
@@ -97,11 +115,11 @@ curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.
 curl -fsSL https://github.com/jeeftor/klipbord/releases/latest/download/install.sh | sh -s -- --install-dir /opt/bin
 ```
 
-**Manual install:** Download the matching archive from the
+**Manual install:** Download the matching `kb-cli` archive from the
 [GitHub releases page](https://github.com/jeeftor/klipbord/releases), extract
-it, and move the `kb` binary to your PATH.
+it, and move the `kb-cli` binary to your PATH.
 
-Once installed, run `kb login`. Profile settings are stored in your normal
+Once installed, run `kb-cli login`. Profile settings are stored in your normal
 config directory while tokens and header values stay in your operating system
 keychain.
 
@@ -109,10 +127,10 @@ keychain.
 # Cloudflare Access service token (recommended for a Cloudflare-protected URL)
 export CF_ACCESS_CLIENT_ID='...'
 export CF_ACCESS_CLIENT_SECRET='...'
-kb login --url https://klipbord.example.com --method cloudflare
+kb-cli login --url https://klipbord.example.com --method cloudflare
 
 # A direct OIDC-protected deployment with device authorization enabled
-kb login --url https://klipbord.example.com --method oidc \
+kb-cli login --url https://klipbord.example.com --method oidc \
   --issuer https://auth.example.com/application/o/klipbord/ \
   --client-id kb-cli
 ```
@@ -120,11 +138,11 @@ kb login --url https://klipbord.example.com --method oidc \
 ### Auto-discovery (Authentik forward_auth)
 
 When Klipbord is behind Authentik forward_auth with CLI detection
-configured in Caddy, `kb login` auto-discovers the OIDC settings —
+configured in Caddy, `kb-cli login` auto-discovers the OIDC settings —
 no `--method`, `--issuer`, or `--client-id` flags needed:
 
 ```bash
-$ kb login
+$ kb-cli login
 Klipbord server URL [https://klipbord.example.com]:  (press enter)
 Detected auth method: oidc
 Open https://auth.example.com/device?code=810392209 and complete login using code 810392209
@@ -144,7 +162,7 @@ Caddy and Authentik configuration details.
 ### Status and profiles
 
 ```bash
-$ kb status
+$ kb-cli status
 Profile: default
 Server: https://klipbord.example.com
 Method: oidc
@@ -154,7 +172,7 @@ Status: logged in
 Other supported methods are `bearer`, `headers`, and `none` for loopback-only
 development. `headers` accepts repeated header names and securely prompts for
 their values; `oidc` uses OpenID Connect discovery and refresh tokens.
-Use `kb profile list` and `kb profile use NAME` when you have more than one
+Use `kb-cli profile list` and `kb-cli profile use NAME` when you have more than one
 Klipbord connection.
 
 ### Authentik app-password fallback
@@ -165,34 +183,34 @@ It is distinct from an Authentik API token. Then log in without exposing the
 password in your shell history:
 
 ```bash
-kb login --url https://klipbord.example.com \
+kb-cli login --url https://klipbord.example.com \
   --method authentik-app-password \
   --username your-authentik-username
 ```
 
-`kb` prompts for the app password and stores the resulting Basic authorization
+`kb-cli` prompts for the app password and stores the resulting Basic authorization
 header in your operating system keychain. For unattended use, set
 `AUTHENTIK_USERNAME` and `AUTHENTIK_APP_PASSWORD` in the calling environment.
 
-Use `--log-level debug` with `kb login` to diagnose discovery or OIDC setup.
+Use `--log-level debug` with `kb-cli login` to diagnose discovery or OIDC setup.
 It prints request URLs, response statuses, and OAuth error codes while redacting
 device codes, access tokens, refresh tokens, and configured headers.
 
 ### Version management
 
 ```bash
-$ kb version
-kb version v2.14.0
+$ kb-cli version
+kb-cli version v2.14.0
 
-$ kb update --check
-An update is available: v2.14.0 (current: v2.13.0). Run 'kb update' to upgrade.
+$ kb-cli update --check
+An update is available: v2.14.0 (current: v2.13.0). Run 'kb-cli update' to upgrade.
 
-$ kb update
-Updating kb v2.13.0 → v2.14.0...
-== Installed kb to /home/user/.local/bin/kb
+$ kb-cli update
+Updating kb-cli v2.13.0 → v2.14.0...
+== Installed kb-cli to /home/user/.local/bin/kb-cli
 ```
 
-`kb` also checks for updates automatically once per day when uploading
+`kb-cli` also checks for updates automatically once per day when uploading
 files. If a newer version is available, it prints a notice to stderr
 (never blocks or fails the upload).
 
@@ -206,7 +224,7 @@ files. If a newer version is available, it prints a notice to stderr
 |---------|---------|-------------|
 | `PORT` | `8080` | HTTP port |
 | `DATA_DIR` | `/data` | Storage directory |
-| `BASE_URL` | `http://localhost:8080` | Public URL for generating links |
+| `BASE_URL` | Active LAN IPv4 address, or `http://localhost:8080` | Public URL for generating links; set explicitly for proxies/TLS/multi-homed hosts |
 | `MAX_UPLOAD_MB` | `2048` | Max upload size in MB |
 | `VISION_ENABLED` | `true` | Enable automatic image analysis on upload |
 | `VISION_REQUEST_TIMEOUT` | `2m` | Maximum time for each matrix inference request |
@@ -512,7 +530,7 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 ## Development
 
 ```bash
-make build   # go build -o klipbord .
+make build   # go build -o kb-server .
 make run     # go run .
 make test    # go test ./...
 ```

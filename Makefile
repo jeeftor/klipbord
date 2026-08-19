@@ -2,7 +2,7 @@
 
 help:
 	@printf '%s\n' 'Available targets:'
-	@printf '%s\n' '  build  Build the Klipbord binary'
+	@printf '%s\n' '  build  Build the Klipbord server binary'
 	@printf '%s\n' '  kb     Build the Klipbord command-line client'
 	@printf '%s\n' '  run    Run Klipbord locally'
 	@printf '%s\n' '  fmt    Format Go source files'
@@ -11,10 +11,10 @@ help:
 	@printf '%s\n' '  check  Run formatting, static analysis, and race-enabled tests'
 
 build:
-	go build -o klipbord .
+	go build -o kb-server .
 
 kb:
-	go build -o kb ./cmd/kb
+	go build -o kb-cli ./cmd/kb
 
 run:
 	go run .
