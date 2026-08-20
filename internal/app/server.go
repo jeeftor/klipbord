@@ -55,6 +55,9 @@ func Run(appVersion string, staticAssets Assets) {
 	if baseURL == "" {
 		baseURL = detectedBaseURL(port)
 	}
+	if err := initWebOIDC(); err != nil {
+		log.Fatalf("Web OIDC configuration error: %v", err)
+	}
 	visionRequestTimeout = durationEnv("VISION_REQUEST_TIMEOUT", 120*time.Second)
 	modelUnloadTimeout = durationEnv("VISION_UNLOAD_TIMEOUT", 120*time.Second)
 
@@ -161,7 +164,11 @@ func NewHandler() *http.ServeMux {
 	mux.HandleFunc("/api/upload/status/", apiUploadStatusHandler)
 	mux.HandleFunc("/api/upload/complete", apiUploadCompleteHandler)
 	mux.HandleFunc("/api/auth/config", authConfigHandler)
+	mux.HandleFunc("/api/auth/session", webOIDCStatusHandler)
 	mux.HandleFunc("/api/identity", identityHandler)
+	mux.HandleFunc("/auth/login", webOIDCLoginHandler)
+	mux.HandleFunc("/auth/callback", webOIDCCallbackHandler)
+	mux.HandleFunc("POST /auth/logout", webOIDCLogoutHandler)
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/version", versionHandler)
 	mux.HandleFunc("/api/update-check", updateCheckHandler)
