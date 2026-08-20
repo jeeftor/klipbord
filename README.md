@@ -240,6 +240,25 @@ files. If a newer version is available, it prints a notice to stderr
 | `VISION_UNLOAD_TIMEOUT` | `2m` | Maximum time to wait for unload and observed memory release |
 | `VISION_ENDPOINT` | *(see presets)* | OpenAI-compatible vision LLM endpoint (overrides UI config) |
 | `VISION_MODEL` | *(see presets)* | Vision model name to use (overrides UI config) |
+| `KLIPBORD_OIDC_ISSUER` | *(disabled)* | OIDC issuer for the optional web login; all `KLIPBORD_OIDC_*` values below are required together |
+| `KLIPBORD_OIDC_CLIENT_ID` | | Confidential OIDC client ID for Klipbord's browser login |
+| `KLIPBORD_OIDC_CLIENT_SECRET` | | Confidential OIDC client secret |
+| `KLIPBORD_OIDC_REDIRECT_URL` | | Exact registered callback URL, such as `https://klipbord.example.com/auth/callback` |
+| `KLIPBORD_OIDC_SESSION_SECRET` | | Unique random value of at least 32 bytes used to sign Klipbord sessions |
+| `KLIPBORD_OIDC_INSECURE_COOKIES` | `false` | Local HTTP development only; requires a loopback callback URL |
+
+### Optional web OIDC login
+
+Set all of the `KLIPBORD_OIDC_*` variables to show a **Log in** button. Klipbord
+uses the reusable `homelab-auth` module for Authorization Code + PKCE login and
+then displays the signed-in identity in the header. This first integration is
+display-only: it does not restrict uploads, downloads, share links, the Config
+tab, or any API routes.
+
+Use an HTTPS callback URL in production and register it exactly at your identity
+provider. Generate a session secret separately from the client secret, for
+example with `openssl rand -base64 48`. Direct HTTP LAN addresses are not
+supported for native login; place Klipbord behind HTTPS or keep web OIDC disabled.
 
 ### Vision LLM
 
