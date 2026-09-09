@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -56,7 +57,7 @@ func NewRootCommand(version string) *cobra.Command {
 	root.Flags().Bool("persistent", false, "make uploaded items persistent")
 	root.Flags().Bool("json", false, "write JSON output")
 	root.Version = version
-	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand(), state.updateCommand(), state.versionCommand())
+	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.watchCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand(), state.updateCommand(), state.versionCommand())
 	return root
 }
 
@@ -416,6 +417,116 @@ func (state commandState) getCommand() *cobra.Command {
 	}
 	command.Flags().StringVarP(&output, "output", "o", "", "output path; use - for stdout")
 	return command
+}
+
+func (state commandState) watchCommand() *cobra.Command {
+	var dir string
+	var interval time.Duration
+	command := &cobra.Command{
+		Use:   "watch",
+		Short: "Poll the Klipbord server and download new items as they appear",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			ctx := command.Context()
+			stdout := command.OutOrStdout()
+			stderr := command.ErrOrStderr()
+			client, err := state.client()
+			if err != nil {
+				return err
+			}
+			if dir == "" {
+				dir = "."
+			}
+			absDir, err := filepath.Abs(dir)
+			if err != nil {
+				return fmt.Errorf("resolve directory: %w", err)
+			}
+			if err := os.MkdirAll(absDir, 0o755); err != nil {
+				return fmt.Errorf("create directory: %w", err)
+			}
+			_, _ = fmt.Fprintf(stderr, "Watching %s — polling every %s, saving to %s\n", client.profile.URL, interval, absDir)
+			return watchLoop(ctx, client, absDir, interval, stdout, stderr)
+		},
+	}
+	command.Flags().StringVarP(&dir, "dir", "d", ".", "directory to save downloaded items")
+	command.Flags().DurationVar(&interval, "interval", 10*time.Second, "poll interval (e.g. 10s, 30s, 1m)")
+	return command
+}
+
+// watchLoop polls the server at the given interval and downloads any items
+// that have not been seen before. It blocks until the context is cancelled.
+func watchLoop(ctx context.Context, client *Client, dir string, interval time.Duration, stdout, stderr io.Writer) error {
+	seen := make(map[string]bool)
+
+	// Seed the seen set with items that already exist so we don't download
+	// the entire backlog on the first poll.
+	if items, err := client.List(ctx, nil); err != nil {
+		_, _ = fmt.Fprintf(stderr, "Initial poll failed: %v\n", err)
+	} else {
+		for _, item := range items {
+			seen[item.ID] = true
+		}
+		if len(items) > 0 {
+			_, _ = fmt.Fprintf(stderr, "Skipping %d existing item(s).\n", len(items))
+		}
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			_, _ = fmt.Fprintln(stderr, "Watch stopped.")
+			return nil
+		case <-ticker.C:
+			if err := watchPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
+				_, _ = fmt.Fprintf(stderr, "Poll error: %v\n", err)
+			}
+		}
+	}
+}
+
+// watchPoll fetches the current item list and downloads any unseen items.
+func watchPoll(ctx context.Context, client *Client, dir string, seen map[string]bool, stdout, stderr io.Writer) error {
+	items, err := client.List(ctx, nil)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if seen[item.ID] {
+			continue
+		}
+		seen[item.ID] = true
+		path := uniquePath(dir, item.Name)
+		if err := client.Get(ctx, item.ID, path, io.Discard); err != nil {
+			_, _ = fmt.Fprintf(stderr, "Failed to download %s: %v\n", item.ID, err)
+			continue
+		}
+		_, _ = fmt.Fprintf(stdout, "Downloaded %s → %s\n", item.ID, path)
+	}
+	return nil
+}
+
+// uniquePath returns a path inside dir that does not yet exist, appending a
+// numeric suffix if the original name collides with an existing file.
+func uniquePath(dir, name string) string {
+	base := name
+	if base == "" {
+		base = "unnamed"
+	}
+	full := filepath.Join(dir, base)
+	if _, err := os.Stat(full); os.IsNotExist(err) {
+		return full
+	}
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	for i := 1; ; i++ {
+		candidate := filepath.Join(dir, fmt.Sprintf("%s-%d%s", stem, i, ext))
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate
+		}
+	}
 }
 
 func (state commandState) pinCommand(persistent bool) *cobra.Command {
