@@ -2,6 +2,7 @@ package app
 
 import (
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -83,8 +84,17 @@ func Run(appVersion string, staticAssets Assets) {
 	go chunkSweeper()
 
 	activePreset := getActiveVisionPreset()
-	log.Printf("klipbord %s listening on :%s (data=%s, max_upload=%dMB, vision=%t, preset=%s)", version, port, dataDir, maxUploadMB, visionEnabled, activePreset.Name)
-	if err := http.ListenAndServe(":"+port, NewHandler()); err != nil {
+	slog.Info("klipbord starting",
+		"version", version,
+		"port", port,
+		"data_dir", dataDir,
+		"max_upload_mb", maxUploadMB,
+		"vision", visionEnabled,
+		"vision_preset", activePreset.Name,
+		"base_url", baseURL,
+	)
+	slog.Info("klipbord ready", "version", version, "addr", ":"+port)
+	if err := http.ListenAndServe(":"+port, loggingMiddleware(NewHandler())); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
@@ -179,6 +189,34 @@ func NewHandler() *http.ServeMux {
 	mux.HandleFunc("/mcp/", mcpHandler)
 	mux.HandleFunc("/link/", directLinkHandler)
 	return mux
+}
+
+// loggingMiddleware wraps a handler and logs each API request.
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		wrapped := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(wrapped, r)
+		slog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.status,
+			"duration", time.Since(start).Round(time.Millisecond),
+			"client", requestClient(r),
+			"user_agent", r.UserAgent(),
+		)
+	})
+}
+
+// statusWriter captures the HTTP status code for logging.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func swaggerHandler(w http.ResponseWriter, _ *http.Request) {

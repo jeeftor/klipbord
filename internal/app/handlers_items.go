@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -113,6 +114,7 @@ func apiFileHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodDelete:
 		deleteItem(id)
+		slog.Info("item deleted", "id", id, "name", item.Name, "client", requestClient(r))
 		writeJSON(w, map[string]string{"status": "deleted", "id": id})
 		return
 	case http.MethodPatch:
@@ -148,6 +150,13 @@ func apiFileHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		updated, _ := findItem(id)
+		if request.Persistent != nil {
+			action := "unpinned"
+			if *request.Persistent {
+				action = "pinned"
+			}
+			slog.Info("item "+action, "id", id, "name", updated.Name, "client", requestClient(r))
+		}
 		writeJSON(w, map[string]interface{}{
 			"id":         updated.ID,
 			"persistent": updated.Persistent,
