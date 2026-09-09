@@ -3,4 +3,6 @@
 .gomodcache/
 .gopath/
 /kb
+/kb-cli
+/kb-server
 output/
