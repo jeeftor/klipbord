@@ -18,8 +18,22 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+)
+
+// CLI styles for colored output.
+var (
+	styleHeader   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))  // purple
+	styleInfo     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))              // cyan
+	styleSuccess  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))              // green
+	styleWarning  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))             // orange
+	styleError    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))  // red
+	styleMuted    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))             // gray
+	styleArrow    = lipgloss.NewStyle().Foreground(lipgloss.Color("99"))             // purple-ish
+	styleItemID   = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))            // pink
+	styleFilePath = lipgloss.NewStyle().Foreground(lipgloss.Color("117"))            // light blue
 )
 
 type commandState struct {
@@ -389,7 +403,7 @@ func (state commandState) listCommand() *cobra.Command {
 				return json.NewEncoder(command.OutOrStdout()).Encode(items)
 			}
 			for _, item := range items {
-				if _, err := fmt.Fprintf(command.OutOrStdout(), "%s\t%s\t%s\n", item.ID, item.Type, item.Name); err != nil {
+				if _, err := fmt.Fprintln(command.OutOrStdout(), styleItemID.Render(item.ID)+"\t"+styleMuted.Render(item.Type)+"\t"+styleFilePath.Render(item.Name)); err != nil {
 					return err
 				}
 			}
@@ -443,7 +457,7 @@ func (state commandState) pullCommand() *cobra.Command {
 			if watch {
 				mode = "watch"
 			}
-			_, _ = fmt.Fprintf(stderr, "Pulling from %s (%s) → %s\n", client.profile.URL, mode, absDir)
+			_, _ = fmt.Fprintln(stderr, styleHeader.Render("Pulling")+" from "+styleInfo.Render(client.profile.URL)+" ("+styleMuted.Render(mode)+") "+styleArrow.Render("→")+" "+styleFilePath.Render(absDir))
 			return pullRun(ctx, client, absDir, interval, watch, all, stdout, stderr)
 		},
 	}
@@ -478,10 +492,10 @@ func (state commandState) pushCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					_, _ = fmt.Fprintf(stdout, "Uploaded %s → %s\n", path, item.URL)
+					_, _ = fmt.Fprintln(stdout, styleSuccess.Render("Uploaded")+" "+styleFilePath.Render(path)+" "+styleArrow.Render("→")+" "+styleInfo.Render(item.URL))
 					if removeAfter {
 						if err := os.Remove(path); err != nil {
-							_, _ = fmt.Fprintf(stderr, "Warning: could not remove %s: %v\n", path, err)
+							_, _ = fmt.Fprintln(stderr, styleWarning.Render("Warning: ")+fmt.Sprintf("could not remove %s: %v", path, err))
 						}
 					}
 				}
@@ -495,7 +509,7 @@ func (state commandState) pushCommand() *cobra.Command {
 			if watch {
 				mode = "watch"
 			}
-			_, _ = fmt.Fprintf(stderr, "Pushing %s → %s (%s)\n", absDir, client.profile.URL, mode)
+			_, _ = fmt.Fprintln(stderr, styleHeader.Render("Pushing")+" "+styleFilePath.Render(absDir)+" "+styleArrow.Render("→")+" "+styleInfo.Render(client.profile.URL)+" ("+styleMuted.Render(mode)+")")
 			return pushRun(ctx, client, absDir, interval, watch, ttl, persistent, removeAfter, stdout, stderr)
 		},
 	}
@@ -534,7 +548,7 @@ func (state commandState) syncCommand() *cobra.Command {
 			if watch {
 				mode = "watch"
 			}
-			_, _ = fmt.Fprintf(stderr, "Syncing %s ↔ %s (%s)\n", absDir, client.profile.URL, mode)
+			_, _ = fmt.Fprintln(stderr, styleHeader.Render("Syncing")+" "+styleFilePath.Render(absDir)+" "+styleArrow.Render("↔")+" "+styleInfo.Render(client.profile.URL)+" ("+styleMuted.Render(mode)+")")
 			return syncRun(ctx, client, absDir, interval, watch, all, ttl, persistent, stdout, stderr)
 		},
 	}
@@ -570,19 +584,19 @@ func pullRun(ctx context.Context, client *Client, dir string, interval time.Dura
 	seen := make(map[string]bool)
 	if !all {
 		if items, err := client.List(ctx, nil); err != nil {
-			_, _ = fmt.Fprintf(stderr, "Initial poll failed: %v\n", err)
+			_, _ = fmt.Fprintln(stderr, styleError.Render("Initial poll failed: ")+fmt.Sprintf("%v", err))
 		} else {
 			for _, item := range items {
 				seen[item.ID] = true
 			}
 			if len(items) > 0 {
-				_, _ = fmt.Fprintf(stderr, "Skipping %d existing item(s). Use --all to download them.\n", len(items))
+				_, _ = fmt.Fprintln(stderr, styleMuted.Render(fmt.Sprintf("Skipping %d existing item(s). Use --all to download them.", len(items))))
 			}
 		}
 	}
 	// First poll immediately.
 	if err := pullPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
-		_, _ = fmt.Fprintf(stderr, "Pull error: %v\n", err)
+		_, _ = fmt.Fprintln(stderr, styleError.Render("Pull error: ")+fmt.Sprintf("%v", err))
 	}
 	if !watch {
 		return nil
@@ -592,11 +606,11 @@ func pullRun(ctx context.Context, client *Client, dir string, interval time.Dura
 	for {
 		select {
 		case <-ctx.Done():
-			_, _ = fmt.Fprintln(stderr, "Pull stopped.")
+			_, _ = fmt.Fprintln(stderr, styleMuted.Render("Pull stopped."))
 			return nil
 		case <-ticker.C:
 			if err := pullPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
-				_, _ = fmt.Fprintf(stderr, "Pull error: %v\n", err)
+				_, _ = fmt.Fprintln(stderr, styleError.Render("Pull error: ")+fmt.Sprintf("%v", err))
 			}
 		}
 	}
@@ -615,10 +629,10 @@ func pullPoll(ctx context.Context, client *Client, dir string, seen map[string]b
 		seen[item.ID] = true
 		path := uniquePath(dir, item.Name)
 		if err := client.Get(ctx, item.ID, path, io.Discard); err != nil {
-			_, _ = fmt.Fprintf(stderr, "Failed to download %s: %v\n", item.ID, err)
+			_, _ = fmt.Fprintln(stderr, styleError.Render("Failed to download ")+styleItemID.Render(item.ID)+": "+fmt.Sprintf("%v", err))
 			continue
 		}
-		_, _ = fmt.Fprintf(stdout, "Pulled %s → %s\n", item.ID, path)
+		_, _ = fmt.Fprintln(stdout, styleSuccess.Render("Pulled")+" "+styleItemID.Render(item.ID)+" "+styleArrow.Render("→")+" "+styleFilePath.Render(path))
 	}
 	return nil
 }
@@ -630,7 +644,7 @@ func pushRun(ctx context.Context, client *Client, dir string, interval time.Dura
 	uploaded := make(map[string]bool)
 	// First pass: upload all existing files.
 	if err := pushPoll(ctx, client, dir, uploaded, ttl, persistent, removeAfter, stdout, stderr); err != nil {
-		_, _ = fmt.Fprintf(stderr, "Push error: %v\n", err)
+		_, _ = fmt.Fprintln(stderr, styleError.Render("Push error: ")+fmt.Sprintf("%v", err))
 	}
 	if !watch {
 		return nil
@@ -640,11 +654,11 @@ func pushRun(ctx context.Context, client *Client, dir string, interval time.Dura
 	for {
 		select {
 		case <-ctx.Done():
-			_, _ = fmt.Fprintln(stderr, "Push stopped.")
+			_, _ = fmt.Fprintln(stderr, styleMuted.Render("Push stopped."))
 			return nil
 		case <-ticker.C:
 			if err := pushPoll(ctx, client, dir, uploaded, ttl, persistent, removeAfter, stdout, stderr); err != nil {
-				_, _ = fmt.Fprintf(stderr, "Push error: %v\n", err)
+				_, _ = fmt.Fprintln(stderr, styleError.Render("Push error: ")+fmt.Sprintf("%v", err))
 			}
 		}
 	}
@@ -667,13 +681,13 @@ func pushPoll(ctx context.Context, client *Client, dir string, uploaded map[stri
 		uploaded[path] = true
 		item, err := client.UploadFile(ctx, path, "", ttl, persistent)
 		if err != nil {
-			_, _ = fmt.Fprintf(stderr, "Failed to upload %s: %v\n", path, err)
+			_, _ = fmt.Fprintln(stderr, styleError.Render("Failed to upload ")+styleFilePath.Render(path)+": "+fmt.Sprintf("%v", err))
 			continue
 		}
-		_, _ = fmt.Fprintf(stdout, "Pushed %s → %s\n", path, item.URL)
+		_, _ = fmt.Fprintln(stdout, styleSuccess.Render("Pushed")+" "+styleFilePath.Render(path)+" "+styleArrow.Render("→")+" "+styleInfo.Render(item.URL))
 		if removeAfter {
 			if err := os.Remove(path); err != nil {
-				_, _ = fmt.Fprintf(stderr, "Warning: could not remove %s: %v\n", path, err)
+				_, _ = fmt.Fprintln(stderr, styleWarning.Render("Warning: ")+fmt.Sprintf("could not remove %s: %v", path, err))
 			}
 		}
 	}
@@ -687,20 +701,20 @@ func syncRun(ctx context.Context, client *Client, dir string, interval time.Dura
 	seen := make(map[string]bool)
 	if !all {
 		if items, err := client.List(ctx, nil); err != nil {
-			_, _ = fmt.Fprintf(stderr, "Initial poll failed: %v\n", err)
+			_, _ = fmt.Fprintln(stderr, styleError.Render("Initial poll failed: ")+fmt.Sprintf("%v", err))
 		} else {
 			for _, item := range items {
 				seen[item.ID] = true
 			}
 			if len(items) > 0 {
-				_, _ = fmt.Fprintf(stderr, "Skipping %d existing item(s). Use --all to download them.\n", len(items))
+				_, _ = fmt.Fprintln(stderr, styleMuted.Render(fmt.Sprintf("Skipping %d existing item(s). Use --all to download them.", len(items))))
 			}
 		}
 	}
 	uploaded := make(map[string]bool)
 	// First pass immediately.
 	if err := syncPoll(ctx, client, dir, seen, uploaded, ttl, persistent, stdout, stderr); err != nil {
-		_, _ = fmt.Fprintf(stderr, "Sync error: %v\n", err)
+		_, _ = fmt.Fprintln(stderr, styleError.Render("Sync error: ")+fmt.Sprintf("%v", err))
 	}
 	if !watch {
 		return nil
@@ -710,11 +724,11 @@ func syncRun(ctx context.Context, client *Client, dir string, interval time.Dura
 	for {
 		select {
 		case <-ctx.Done():
-			_, _ = fmt.Fprintln(stderr, "Sync stopped.")
+			_, _ = fmt.Fprintln(stderr, styleMuted.Render("Sync stopped."))
 			return nil
 		case <-ticker.C:
 			if err := syncPoll(ctx, client, dir, seen, uploaded, ttl, persistent, stdout, stderr); err != nil {
-				_, _ = fmt.Fprintf(stderr, "Sync error: %v\n", err)
+				_, _ = fmt.Fprintln(stderr, styleError.Render("Sync error: ")+fmt.Sprintf("%v", err))
 			}
 		}
 	}
@@ -724,7 +738,7 @@ func syncRun(ctx context.Context, client *Client, dir string, interval time.Dura
 // and upload new local files.
 func syncPoll(ctx context.Context, client *Client, dir string, seen, uploaded map[string]bool, ttl string, persistent bool, stdout, stderr io.Writer) error {
 	if err := pullPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
-		_, _ = fmt.Fprintf(stderr, "Pull side: %v\n", err)
+		_, _ = fmt.Fprintln(stderr, styleError.Render("Pull side: ")+fmt.Sprintf("%v", err))
 	}
 	return pushPoll(ctx, client, dir, uploaded, ttl, persistent, false, stdout, stderr)
 }
