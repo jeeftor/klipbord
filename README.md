@@ -102,6 +102,52 @@ kb-cli rm ITEM_ID
 Uploads print their share URL to standard output, so they compose cleanly with
 shell scripts. Use `--json` when a script needs item metadata.
 
+### Pull, Push, and Sync
+
+`kb-cli` supports git-style pull/push/sync commands for transferring files
+between your local machine and the Klipbord server:
+
+```bash
+# Pull: download new items from the server (one-shot)
+kb-cli pull -d ./downloads
+
+# Pull everything including backlog
+kb-cli pull -d ./downloads --all
+
+# Keep polling for new items
+kb-cli pull -d ./downloads --watch --interval 10s
+
+# Push: upload local files (one-shot)
+kb-cli push photo.png document.pdf
+
+# Upload all files in a directory (one-shot)
+kb-cli push -d ./uploads
+
+# Watch a directory and auto-upload new files
+kb-cli push -d ./uploads --watch --interval 10s
+
+# Upload and delete local file after success
+kb-cli push -d ./uploads --rm
+
+# Sync: bidirectional pull + push (one-shot)
+kb-cli sync -d ./shared
+
+# Continuous bidirectional sync
+kb-cli sync -d ./shared --watch --interval 10s
+
+# Sync including backlog
+kb-cli sync -d ./shared --all
+```
+
+| Command | Description | `--watch` | `--all` |
+|---------|-------------|-----------|---------|
+| `pull` | Download items from server | Keep polling | Download backlog too |
+| `push` | Upload local files to server | Watch dir for new files | — |
+| `sync` | Bidirectional pull + push | Continuous both ways | Pull backlog too |
+
+All three support `-d` (directory), `--interval` (poll interval, default 10s),
+and `--ttl` / `--persistent` for upload expiration settings.
+
 ### Installing `kb-cli`
 
 **One-liner (macOS/Linux):**
@@ -511,6 +557,10 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 ---
 
 ## Changelog
+
+### v2.18.0
+
+- **`kb pull` / `kb push` / `kb sync`**: Git-style commands for transferring files between your machine and the Klipbord server. `pull` downloads new items, `push` uploads local files, and `sync` does both bidirectionally. All three support `--watch` for continuous operation and `--all` to include backlog. `push` also supports `--rm` to delete local files after upload and `--ttl` / `--persistent` for expiration control.
 
 ### v2.12.1
 

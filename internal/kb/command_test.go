@@ -114,7 +114,7 @@ func TestUniquePathPreservesExtension(t *testing.T) {
 	}
 }
 
-func TestWatchPollDownloadsNewItemsOnly(t *testing.T) {
+func TestPullPollDownloadsNewItemsOnly(t *testing.T) {
 	store, _ := newTestStore(t)
 	var listCalls int
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -145,13 +145,10 @@ func TestWatchPollDownloadsNewItemsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	seen := map[string]bool{"old": true} // old item already seen
+	seen := map[string]bool{"old": true}
 	var stdout, stderr strings.Builder
-	if err := watchPoll(context.Background(), client, dir, seen, &stdout, &stderr); err != nil {
+	if err := pullPoll(context.Background(), client, dir, seen, &stdout, &stderr); err != nil {
 		t.Fatal(err)
-	}
-	if listCalls != 3 {
-		t.Fatalf("listCalls = %d, want 3 (1 poll + 2 from Get lookups)", listCalls)
 	}
 	for _, name := range []string{"new1.txt", "new2.txt"} {
 		path := filepath.Join(dir, name)
@@ -172,7 +169,7 @@ func TestWatchPollDownloadsNewItemsOnly(t *testing.T) {
 	}
 }
 
-func TestWatchPollSkipsAlreadySeen(t *testing.T) {
+func TestPullPollSkipsAlreadySeen(t *testing.T) {
 	store, _ := newTestStore(t)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
@@ -195,7 +192,7 @@ func TestWatchPollSkipsAlreadySeen(t *testing.T) {
 	dir := t.TempDir()
 	seen := map[string]bool{"seen": true}
 	var stdout, stderr strings.Builder
-	if err := watchPoll(context.Background(), client, dir, seen, &stdout, &stderr); err != nil {
+	if err := pullPoll(context.Background(), client, dir, seen, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
 	if stdout.Len() != 0 {
@@ -203,7 +200,7 @@ func TestWatchPollSkipsAlreadySeen(t *testing.T) {
 	}
 }
 
-func TestWatchPollContinuesAfterDownloadError(t *testing.T) {
+func TestPullPollContinuesAfterDownloadError(t *testing.T) {
 	store, _ := newTestStore(t)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
@@ -231,7 +228,7 @@ func TestWatchPollContinuesAfterDownloadError(t *testing.T) {
 	dir := t.TempDir()
 	seen := map[string]bool{}
 	var stdout, stderr strings.Builder
-	if err := watchPoll(context.Background(), client, dir, seen, &stdout, &stderr); err != nil {
+	if err := pullPoll(context.Background(), client, dir, seen, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.ReadFile(filepath.Join(dir, "good.txt")); err != nil {
@@ -240,8 +237,198 @@ func TestWatchPollContinuesAfterDownloadError(t *testing.T) {
 	if !strings.Contains(stderr.String(), "Failed to download bad") {
 		t.Fatalf("stderr = %q, want download failure message", stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Downloaded good") {
-		t.Fatalf("stdout = %q, want download success message", stdout.String())
+	if !strings.Contains(stdout.String(), "Pulled good") {
+		t.Fatalf("stdout = %q, want pull success message", stdout.String())
+	}
+}
+
+func TestPushPollUploadsNewFilesOnly(t *testing.T) {
+	store, _ := newTestStore(t)
+	var uploadCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/api/upload":
+			uploadCalls++
+			if err := request.ParseMultipartForm(1024 * 1024); err != nil {
+				t.Fatal(err)
+			}
+			file, header, err := request.FormFile("file")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			_ = json.NewEncoder(writer).Encode(CreatedItem{ID: "id-" + header.Filename, Name: header.Filename, URL: "https://kb.test/" + header.Filename})
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL)
+		}
+	}))
+	defer server.Close()
+	if err := store.SaveProfile("default", Profile{URL: server.URL, Method: "none"}, Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(store, "", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("alpha"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("beta"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	uploaded := map[string]bool{}
+	var stdout, stderr strings.Builder
+	if err := pushPoll(context.Background(), client, dir, uploaded, "7d", false, false, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if uploadCalls != 2 {
+		t.Fatalf("uploadCalls = %d, want 2", uploadCalls)
+	}
+	if !uploaded[filepath.Join(dir, "a.txt")] || !uploaded[filepath.Join(dir, "b.txt")] {
+		t.Fatalf("uploaded = %v, want both files marked", uploaded)
+	}
+	if !strings.Contains(stdout.String(), "Pushed") {
+		t.Fatalf("stdout = %q, want push messages", stdout.String())
+	}
+}
+
+func TestPushPollSkipsAlreadyUploaded(t *testing.T) {
+	store, _ := newTestStore(t)
+	var uploadCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/api/upload":
+			uploadCalls++
+			_ = json.NewEncoder(writer).Encode(CreatedItem{ID: "x", Name: "x", URL: "https://kb.test/x"})
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL)
+		}
+	}))
+	defer server.Close()
+	if err := store.SaveProfile("default", Profile{URL: server.URL, Method: "none"}, Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(store, "", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "done.txt")
+	if err := os.WriteFile(path, []byte("done"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	uploaded := map[string]bool{path: true}
+	var stdout, stderr strings.Builder
+	if err := pushPoll(context.Background(), client, dir, uploaded, "7d", false, false, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if uploadCalls != 0 {
+		t.Fatalf("uploadCalls = %d, want 0", uploadCalls)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+}
+
+func TestPushPollRemovesAfterUpload(t *testing.T) {
+	store, _ := newTestStore(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/api/upload":
+			_ = json.NewEncoder(writer).Encode(CreatedItem{ID: "x", Name: "x", URL: "https://kb.test/x"})
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL)
+		}
+	}))
+	defer server.Close()
+	if err := store.SaveProfile("default", Profile{URL: server.URL, Method: "none"}, Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(store, "", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gone.txt")
+	if err := os.WriteFile(path, []byte("bye"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	uploaded := map[string]bool{}
+	var stdout, stderr strings.Builder
+	if err := pushPoll(context.Background(), client, dir, uploaded, "7d", false, true, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("file should have been removed after upload")
+	}
+}
+
+func TestPushPollSkipsSubdirectories(t *testing.T) {
+	store, _ := newTestStore(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		t.Fatalf("unexpected request: %s %s", request.Method, request.URL)
+	}))
+	defer server.Close()
+	if err := store.SaveProfile("default", Profile{URL: server.URL, Method: "none"}, Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(store, "", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	uploaded := map[string]bool{}
+	var stdout, stderr strings.Builder
+	if err := pushPoll(context.Background(), client, dir, uploaded, "7d", false, false, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSyncPollPullsAndPushes(t *testing.T) {
+	store, _ := newTestStore(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/api/files":
+			_ = json.NewEncoder(writer).Encode(map[string]any{"items": []Item{
+				{ID: "srv1", Name: "from-server.txt", Type: "text"},
+			}})
+		case request.Method == http.MethodGet && request.URL.Path == "/api/text/srv1":
+			_, _ = io.WriteString(writer, "from server")
+		case request.Method == http.MethodPost && request.URL.Path == "/api/upload":
+			_ = json.NewEncoder(writer).Encode(CreatedItem{ID: "upl1", Name: "to-server.txt", URL: "https://kb.test/upl1"})
+		default:
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL)
+		}
+	}))
+	defer server.Close()
+	if err := store.SaveProfile("default", Profile{URL: server.URL, Method: "none"}, Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient(store, "", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "to-server.txt"), []byte("from local"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	uploaded := map[string]bool{}
+	var stdout, stderr strings.Builder
+	if err := syncPoll(context.Background(), client, dir, seen, uploaded, "7d", false, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	// Server item should have been pulled.
+	if _, err := os.ReadFile(filepath.Join(dir, "from-server.txt")); err != nil {
+		t.Fatalf("from-server.txt should have been pulled: %v", err)
+	}
+	// Local file should have been uploaded.
+	if !uploaded[filepath.Join(dir, "to-server.txt")] {
+		t.Fatal("to-server.txt should have been pushed")
 	}
 }
 

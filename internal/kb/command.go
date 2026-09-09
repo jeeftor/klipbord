@@ -57,7 +57,7 @@ func NewRootCommand(version string) *cobra.Command {
 	root.Flags().Bool("persistent", false, "make uploaded items persistent")
 	root.Flags().Bool("json", false, "write JSON output")
 	root.Version = version
-	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.watchCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand(), state.updateCommand(), state.versionCommand())
+	root.AddCommand(state.loginCommand(), state.logoutCommand(), state.statusCommand(), state.profileCommand(), state.listCommand(), state.getCommand(), state.pullCommand(), state.pushCommand(), state.syncCommand(), state.pinCommand(true), state.pinCommand(false), state.deleteCommand(), state.updateCommand(), state.versionCommand())
 	return root
 }
 
@@ -419,12 +419,13 @@ func (state commandState) getCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) watchCommand() *cobra.Command {
+func (state commandState) pullCommand() *cobra.Command {
 	var dir string
 	var interval time.Duration
+	var watch, all bool
 	command := &cobra.Command{
-		Use:   "watch",
-		Short: "Poll the Klipbord server and download new items as they appear",
+		Use:   "pull",
+		Short: "Download items from the Klipbord server",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			ctx := command.Context()
@@ -434,61 +435,175 @@ func (state commandState) watchCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if dir == "" {
-				dir = "."
-			}
-			absDir, err := filepath.Abs(dir)
+			absDir, err := resolveDir(dir)
 			if err != nil {
-				return fmt.Errorf("resolve directory: %w", err)
+				return err
 			}
-			if err := os.MkdirAll(absDir, 0o755); err != nil {
-				return fmt.Errorf("create directory: %w", err)
+			mode := "one-shot"
+			if watch {
+				mode = "watch"
 			}
-			_, _ = fmt.Fprintf(stderr, "Watching %s — polling every %s, saving to %s\n", client.profile.URL, interval, absDir)
-			return watchLoop(ctx, client, absDir, interval, stdout, stderr)
+			_, _ = fmt.Fprintf(stderr, "Pulling from %s (%s) → %s\n", client.profile.URL, mode, absDir)
+			return pullRun(ctx, client, absDir, interval, watch, all, stdout, stderr)
 		},
 	}
 	command.Flags().StringVarP(&dir, "dir", "d", ".", "directory to save downloaded items")
 	command.Flags().DurationVar(&interval, "interval", 10*time.Second, "poll interval (e.g. 10s, 30s, 1m)")
+	command.Flags().BoolVar(&watch, "watch", false, "keep polling for new items")
+	command.Flags().BoolVar(&all, "all", false, "download all items including backlog")
 	return command
 }
 
-// watchLoop polls the server at the given interval and downloads any items
-// that have not been seen before. It blocks until the context is cancelled.
-func watchLoop(ctx context.Context, client *Client, dir string, interval time.Duration, stdout, stderr io.Writer) error {
-	seen := make(map[string]bool)
+func (state commandState) pushCommand() *cobra.Command {
+	var dir string
+	var interval time.Duration
+	var watch, removeAfter, persistent bool
+	var ttl string
+	command := &cobra.Command{
+		Use:   "push [FILE...]",
+		Short: "Upload local files to the Klipbord server",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(command *cobra.Command, paths []string) error {
+			ctx := command.Context()
+			stdout := command.OutOrStdout()
+			stderr := command.ErrOrStderr()
+			client, err := state.client()
+			if err != nil {
+				return err
+			}
+			if len(paths) > 0 {
+				// One-shot: upload specified files.
+				for _, path := range paths {
+					item, err := client.UploadFile(ctx, path, "", ttl, persistent)
+					if err != nil {
+						return err
+					}
+					_, _ = fmt.Fprintf(stdout, "Uploaded %s → %s\n", path, item.URL)
+					if removeAfter {
+						if err := os.Remove(path); err != nil {
+							_, _ = fmt.Fprintf(stderr, "Warning: could not remove %s: %v\n", path, err)
+						}
+					}
+				}
+				return nil
+			}
+			absDir, err := resolveDir(dir)
+			if err != nil {
+				return err
+			}
+			mode := "one-shot"
+			if watch {
+				mode = "watch"
+			}
+			_, _ = fmt.Fprintf(stderr, "Pushing %s → %s (%s)\n", absDir, client.profile.URL, mode)
+			return pushRun(ctx, client, absDir, interval, watch, ttl, persistent, removeAfter, stdout, stderr)
+		},
+	}
+	command.Flags().StringVarP(&dir, "dir", "d", ".", "directory to upload files from")
+	command.Flags().DurationVar(&interval, "interval", 10*time.Second, "poll interval for --watch (e.g. 10s, 30s, 1m)")
+	command.Flags().BoolVar(&watch, "watch", false, "keep watching the directory for new files")
+	command.Flags().BoolVar(&removeAfter, "rm", false, "remove local file after successful upload")
+	command.Flags().StringVar(&ttl, "ttl", "7d", "expiration: 1h, 1d, 7d, 30d, or never")
+	command.Flags().BoolVar(&persistent, "persistent", false, "make uploaded items persistent")
+	return command
+}
 
-	// Seed the seen set with items that already exist so we don't download
-	// the entire backlog on the first poll.
-	if items, err := client.List(ctx, nil); err != nil {
-		_, _ = fmt.Fprintf(stderr, "Initial poll failed: %v\n", err)
-	} else {
-		for _, item := range items {
-			seen[item.ID] = true
-		}
-		if len(items) > 0 {
-			_, _ = fmt.Fprintf(stderr, "Skipping %d existing item(s).\n", len(items))
+func (state commandState) syncCommand() *cobra.Command {
+	var dir string
+	var interval time.Duration
+	var watch, all bool
+	var ttl string
+	var persistent bool
+	command := &cobra.Command{
+		Use:   "sync",
+		Short: "Bidirectional sync: pull from and push to the Klipbord server",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			ctx := command.Context()
+			stdout := command.OutOrStdout()
+			stderr := command.ErrOrStderr()
+			client, err := state.client()
+			if err != nil {
+				return err
+			}
+			absDir, err := resolveDir(dir)
+			if err != nil {
+				return err
+			}
+			mode := "one-shot"
+			if watch {
+				mode = "watch"
+			}
+			_, _ = fmt.Fprintf(stderr, "Syncing %s ↔ %s (%s)\n", absDir, client.profile.URL, mode)
+			return syncRun(ctx, client, absDir, interval, watch, all, ttl, persistent, stdout, stderr)
+		},
+	}
+	command.Flags().StringVarP(&dir, "dir", "d", ".", "sync directory")
+	command.Flags().DurationVar(&interval, "interval", 10*time.Second, "poll interval for --watch (e.g. 10s, 30s, 1m)")
+	command.Flags().BoolVar(&watch, "watch", false, "keep syncing continuously")
+	command.Flags().BoolVar(&all, "all", false, "pull all items including backlog")
+	command.Flags().StringVar(&ttl, "ttl", "7d", "expiration for pushed items: 1h, 1d, 7d, 30d, or never")
+	command.Flags().BoolVar(&persistent, "persistent", false, "make pushed items persistent")
+	return command
+}
+
+// resolveDir converts a directory path to an absolute path and ensures it exists.
+func resolveDir(dir string) (string, error) {
+	if dir == "" {
+		dir = "."
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve directory: %w", err)
+	}
+	if err := os.MkdirAll(absDir, 0o755); err != nil {
+		return "", fmt.Errorf("create directory: %w", err)
+	}
+	return absDir, nil
+}
+
+// pullRun downloads items from the server. When watch is true it polls
+// continuously; otherwise it does a single pass. When all is false, items
+// that already exist on the server are seeded into the seen set so only
+// genuinely new items are downloaded.
+func pullRun(ctx context.Context, client *Client, dir string, interval time.Duration, watch, all bool, stdout, stderr io.Writer) error {
+	seen := make(map[string]bool)
+	if !all {
+		if items, err := client.List(ctx, nil); err != nil {
+			_, _ = fmt.Fprintf(stderr, "Initial poll failed: %v\n", err)
+		} else {
+			for _, item := range items {
+				seen[item.ID] = true
+			}
+			if len(items) > 0 {
+				_, _ = fmt.Fprintf(stderr, "Skipping %d existing item(s). Use --all to download them.\n", len(items))
+			}
 		}
 	}
-
+	// First poll immediately.
+	if err := pullPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
+		_, _ = fmt.Fprintf(stderr, "Pull error: %v\n", err)
+	}
+	if !watch {
+		return nil
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
-			_, _ = fmt.Fprintln(stderr, "Watch stopped.")
+			_, _ = fmt.Fprintln(stderr, "Pull stopped.")
 			return nil
 		case <-ticker.C:
-			if err := watchPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
-				_, _ = fmt.Fprintf(stderr, "Poll error: %v\n", err)
+			if err := pullPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
+				_, _ = fmt.Fprintf(stderr, "Pull error: %v\n", err)
 			}
 		}
 	}
 }
 
-// watchPoll fetches the current item list and downloads any unseen items.
-func watchPoll(ctx context.Context, client *Client, dir string, seen map[string]bool, stdout, stderr io.Writer) error {
+// pullPoll fetches the current item list and downloads any unseen items.
+func pullPoll(ctx context.Context, client *Client, dir string, seen map[string]bool, stdout, stderr io.Writer) error {
 	items, err := client.List(ctx, nil)
 	if err != nil {
 		return err
@@ -503,9 +618,115 @@ func watchPoll(ctx context.Context, client *Client, dir string, seen map[string]
 			_, _ = fmt.Fprintf(stderr, "Failed to download %s: %v\n", item.ID, err)
 			continue
 		}
-		_, _ = fmt.Fprintf(stdout, "Downloaded %s → %s\n", item.ID, path)
+		_, _ = fmt.Fprintf(stdout, "Pulled %s → %s\n", item.ID, path)
 	}
 	return nil
+}
+
+// pushRun uploads local files to the server. When watch is true it polls
+// the directory continuously for new files; otherwise it uploads all files
+// in the directory once.
+func pushRun(ctx context.Context, client *Client, dir string, interval time.Duration, watch bool, ttl string, persistent, removeAfter bool, stdout, stderr io.Writer) error {
+	uploaded := make(map[string]bool)
+	// First pass: upload all existing files.
+	if err := pushPoll(ctx, client, dir, uploaded, ttl, persistent, removeAfter, stdout, stderr); err != nil {
+		_, _ = fmt.Fprintf(stderr, "Push error: %v\n", err)
+	}
+	if !watch {
+		return nil
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			_, _ = fmt.Fprintln(stderr, "Push stopped.")
+			return nil
+		case <-ticker.C:
+			if err := pushPoll(ctx, client, dir, uploaded, ttl, persistent, removeAfter, stdout, stderr); err != nil {
+				_, _ = fmt.Fprintf(stderr, "Push error: %v\n", err)
+			}
+		}
+	}
+}
+
+// pushPoll scans the directory for files not yet uploaded and uploads them.
+func pushPoll(ctx context.Context, client *Client, dir string, uploaded map[string]bool, ttl string, persistent, removeAfter bool, stdout, stderr io.Writer) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read directory: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if uploaded[path] {
+			continue
+		}
+		uploaded[path] = true
+		item, err := client.UploadFile(ctx, path, "", ttl, persistent)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "Failed to upload %s: %v\n", path, err)
+			continue
+		}
+		_, _ = fmt.Fprintf(stdout, "Pushed %s → %s\n", path, item.URL)
+		if removeAfter {
+			if err := os.Remove(path); err != nil {
+				_, _ = fmt.Fprintf(stderr, "Warning: could not remove %s: %v\n", path, err)
+			}
+		}
+	}
+	return nil
+}
+
+// syncRun combines pull and push in a single pass or continuously when watch
+// is true. The seen set prevents re-downloading items, and the uploaded set
+// prevents re-uploading files.
+func syncRun(ctx context.Context, client *Client, dir string, interval time.Duration, watch, all bool, ttl string, persistent bool, stdout, stderr io.Writer) error {
+	seen := make(map[string]bool)
+	if !all {
+		if items, err := client.List(ctx, nil); err != nil {
+			_, _ = fmt.Fprintf(stderr, "Initial poll failed: %v\n", err)
+		} else {
+			for _, item := range items {
+				seen[item.ID] = true
+			}
+			if len(items) > 0 {
+				_, _ = fmt.Fprintf(stderr, "Skipping %d existing item(s). Use --all to download them.\n", len(items))
+			}
+		}
+	}
+	uploaded := make(map[string]bool)
+	// First pass immediately.
+	if err := syncPoll(ctx, client, dir, seen, uploaded, ttl, persistent, stdout, stderr); err != nil {
+		_, _ = fmt.Fprintf(stderr, "Sync error: %v\n", err)
+	}
+	if !watch {
+		return nil
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			_, _ = fmt.Fprintln(stderr, "Sync stopped.")
+			return nil
+		case <-ticker.C:
+			if err := syncPoll(ctx, client, dir, seen, uploaded, ttl, persistent, stdout, stderr); err != nil {
+				_, _ = fmt.Fprintf(stderr, "Sync error: %v\n", err)
+			}
+		}
+	}
+}
+
+// syncPoll performs one pass of bidirectional sync: download new server items
+// and upload new local files.
+func syncPoll(ctx context.Context, client *Client, dir string, seen, uploaded map[string]bool, ttl string, persistent bool, stdout, stderr io.Writer) error {
+	if err := pullPoll(ctx, client, dir, seen, stdout, stderr); err != nil {
+		_, _ = fmt.Fprintf(stderr, "Pull side: %v\n", err)
+	}
+	return pushPoll(ctx, client, dir, uploaded, ttl, persistent, false, stdout, stderr)
 }
 
 // uniquePath returns a path inside dir that does not yet exist, appending a
