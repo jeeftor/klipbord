@@ -38,6 +38,7 @@ type CreatedItem struct {
 // Client calls Klipbord's existing REST API with a selected profile.
 type Client struct {
 	credentials Credentials
+	debug       debugLogger
 	httpClient  *http.Client
 	name        string
 	profile     Profile
@@ -210,7 +211,10 @@ func (client *Client) doJSON(ctx context.Context, method, path string, body io.R
 		return nil
 	}
 	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+		if strings.Contains(response.Header.Get("Content-Type"), "text/html") {
+			return fmt.Errorf("%s %s returned HTML instead of API JSON; check whether your proxy is serving a browser login page: %w", method, diagnosticURL(client.profile.URL+path), err)
+		}
+		return fmt.Errorf("decode response from %s %s: %w", method, diagnosticURL(client.profile.URL+path), err)
 	}
 	return nil
 }
@@ -233,14 +237,31 @@ func (client *Client) do(ctx context.Context, method, path string, body io.Reade
 	if client.profile.Method == "bearer" || client.profile.Method == "oidc" {
 		request.Header.Set("Authorization", "Bearer "+client.credentials.Token)
 	}
+	debug := client.debug
+	if debug == nil {
+		debug = func(string, ...any) {}
+	}
+	debug("API request: %s %s (method=%s User-Agent=%s; credential values omitted)", method, diagnosticURL(request.URL.String()), client.profile.Method, client.userAgent)
+	started := time.Now()
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		debug("API request failed after %s", time.Since(started).Round(time.Millisecond))
+		var urlError *url.Error
+		if errors.As(err, &urlError) {
+			err = urlError.Err
+		}
+		return nil, fmt.Errorf("%s %s: request failed: %w", method, diagnosticURL(request.URL.String()), err)
 	}
+	debug("API response: %s (%s)", response.Status, time.Since(started).Round(time.Millisecond))
+	if location := response.Header.Get("Location"); location != "" {
+		debug("API redirect target: %s", diagnosticURL(location))
+	}
+	debug("API auth metadata: challenge=%t OIDC-issuer=%t OIDC-client-id=%t", response.Header.Get("WWW-Authenticate") != "", response.Header.Get("X-OIDC-Issuer") != "", response.Header.Get("X-OIDC-Client-ID") != "")
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		defer response.Body.Close()
 		message, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return nil, fmt.Errorf("Klipbord returned %s: %s", response.Status, strings.TrimSpace(string(message)))
+		debug("API error body: %d bytes read (contents omitted to protect credentials)", len(message))
+		return nil, &apiError{method: method, endpoint: diagnosticURL(request.URL.String()), statusCode: response.StatusCode, emptyBody: len(strings.TrimSpace(string(message))) == 0}
 	}
 	return response, nil
 }

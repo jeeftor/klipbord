@@ -26,11 +26,11 @@ import (
 // CLI styles for colored output.
 var (
 	styleHeader   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))  // purple
-	styleInfo     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))              // cyan
-	styleSuccess  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))              // green
-	styleWarning  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))             // orange
-	styleError    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203"))  // red
-	styleMuted    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))             // gray
+	styleInfo     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))             // cyan
+	styleSuccess  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))             // green
+	styleWarning  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))            // orange
+	styleError    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("203")) // red
+	styleMuted    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))            // gray
 	styleArrow    = lipgloss.NewStyle().Foreground(lipgloss.Color("99"))             // purple-ish
 	styleItemID   = lipgloss.NewStyle().Foreground(lipgloss.Color("213"))            // pink
 	styleFilePath = lipgloss.NewStyle().Foreground(lipgloss.Color("117"))            // light blue
@@ -38,6 +38,7 @@ var (
 
 type commandState struct {
 	configPath string
+	debug      debugLogger
 	logLevel   string
 	profile    string
 	version    string
@@ -55,6 +56,14 @@ func NewRootCommand(version string) *cobra.Command {
 		Short:        "Upload and manage items in Klipbord",
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
+		PersistentPreRun: func(command *cobra.Command, _ []string) {
+			debug, _ := command.Flags().GetBool("debug")
+			level := state.logLevel
+			if debug {
+				level = "debug"
+			}
+			state.debug = newDebugLogger(level, command.ErrOrStderr())
+		},
 		RunE: func(command *cobra.Command, paths []string) error {
 			if len(paths) == 0 && stdinIsTerminal() {
 				return command.Help()
@@ -65,6 +74,7 @@ func NewRootCommand(version string) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&state.configPath, "config", "", "config file path")
 	root.PersistentFlags().StringVar(&state.logLevel, "log-level", "", "logging level: debug")
+	root.PersistentFlags().Bool("debug", false, "print diagnostic details to standard error (same as --log-level debug)")
 	root.PersistentFlags().StringVarP(&state.profile, "profile", "p", "", "connection profile")
 	root.Flags().String("name", "", "item name")
 	root.Flags().String("ttl", "7d", "expiration: 1h, 1d, 7d, 30d, or never")
@@ -75,19 +85,25 @@ func NewRootCommand(version string) *cobra.Command {
 	return root
 }
 
-func (state commandState) store() (*ConfigStore, error) {
+func (state *commandState) store() (*ConfigStore, error) {
 	return NewConfigStore(state.configPath, nil)
 }
 
-func (state commandState) client() (*Client, error) {
+func (state *commandState) client() (*Client, error) {
 	store, err := state.store()
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(store, state.profile, nil)
+	client, err := NewClient(store, state.profile, nil)
+	if err != nil {
+		return nil, err
+	}
+	client.SetUserAgent(state.version)
+	client.debug = state.debug
+	return client, nil
 }
 
-func (state commandState) upload(ctx context.Context, stdout, stderr io.Writer, paths []string, flags interface {
+func (state *commandState) upload(ctx context.Context, stdout, stderr io.Writer, paths []string, flags interface {
 	GetBool(string) (bool, error)
 	GetString(string) (string, error)
 }) error {
@@ -142,7 +158,7 @@ func (state commandState) upload(ctx context.Context, stdout, stderr io.Writer, 
 	return nil
 }
 
-func (state commandState) loginCommand() *cobra.Command {
+func (state *commandState) loginCommand() *cobra.Command {
 	var method, profileName, profileURL, issuer, clientID, username string
 	var scopes, headerNames []string
 	command := &cobra.Command{
@@ -152,8 +168,18 @@ func (state commandState) loginCommand() *cobra.Command {
 			stdout := command.OutOrStdout()
 			stderr := command.ErrOrStderr()
 			ctx := command.Context()
-			logLevel, _ := command.Root().PersistentFlags().GetString("log-level")
-			debug := newDebugLogger(logLevel, stderr)
+			debug := state.debug
+			profileName = loginEnv(command, "name", profileName, "KB_PROFILE")
+			profileURL = loginEnv(command, "url", profileURL, "KB_SERVER")
+			method = loginEnv(command, "method", method, "KB_METHOD")
+			issuer = loginEnv(command, "issuer", issuer, "KB_OIDC_ISSUER")
+			clientID = loginEnv(command, "client-id", clientID, "KB_OIDC_CLIENT_ID")
+			username = loginEnv(command, "username", username, "KB_USERNAME")
+			if !command.Flags().Changed("scope") {
+				if envScopes := loginScopesEnv(); len(envScopes) > 0 {
+					scopes = envScopes
+				}
+			}
 
 			if profileName == "" {
 				profileName = "default"
@@ -172,7 +198,7 @@ func (state commandState) loginCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			debug("login target: %s", profileURL)
+			debug("login target: %s", diagnosticURL(profileURL))
 
 			// Auto-discover auth config from the server
 			if method == "" {
@@ -224,6 +250,7 @@ func (state commandState) loginCommand() *cobra.Command {
 			}
 
 			profile := Profile{URL: profileURL, Method: method, Issuer: issuer, ClientID: clientID, Scopes: scopes}
+			debug("login profile: %q (method=%s)", profileName, method)
 			credentials, err := loginCredentials(ctx, stderr, profile, username, headerNames, debug)
 			if err != nil {
 				return err
@@ -235,15 +262,20 @@ func (state commandState) loginCommand() *cobra.Command {
 			if err := store.SaveProfile(profileName, profile, credentials); err != nil {
 				return err
 			}
-			client, err := NewClient(store, profileName, nil)
+			debug("profile saved: %s", store.path)
+			client, err := NewClient(store, profileName, &http.Client{
+				Timeout:       60 * time.Second,
+				CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+			})
 			if err != nil {
 				return err
 			}
 			client.SetUserAgent(state.version)
+			client.debug = debug
 			if _, err := client.List(ctx, nil); err != nil {
-				return fmt.Errorf("saved profile but connection test failed: %w", err)
+				return loginConnectionError(profileName, profile, err)
 			}
-			_, err = fmt.Fprintf(stdout, "Logged in. Profile %q is ready.\n", profileName)
+			_, err = fmt.Fprintln(stdout, styleSuccess.Render("Logged in")+" "+styleMuted.Render("Profile")+" "+styleInfo.Render(profileName)+" "+styleSuccess.Render("is ready."))
 			return err
 		},
 	}
@@ -258,7 +290,33 @@ func (state commandState) loginCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) logoutCommand() *cobra.Command {
+// loginEnv returns an environment default unless the corresponding flag was supplied.
+func loginEnv(command *cobra.Command, flagName, value, environment string) string {
+	if command.Flags().Changed(flagName) {
+		return value
+	}
+	if environmentValue := os.Getenv(environment); environmentValue != "" {
+		return environmentValue
+	}
+	return value
+}
+
+// loginScopesEnv reads a space- or comma-separated OIDC scope list from KB_OIDC_SCOPES.
+func loginScopesEnv() []string {
+	return strings.FieldsFunc(os.Getenv("KB_OIDC_SCOPES"), func(character rune) bool {
+		return character == ',' || unicode.IsSpace(character)
+	})
+}
+
+// envOr returns value unless it is empty, then returns the named environment value.
+func envOr(value, environment string) string {
+	if value != "" {
+		return value
+	}
+	return os.Getenv(environment)
+}
+
+func (state *commandState) logoutCommand() *cobra.Command {
 	var profileName string
 	command := &cobra.Command{
 		Use:   "logout",
@@ -277,7 +335,7 @@ func (state commandState) logoutCommand() *cobra.Command {
 			if err := store.DeleteProfile(profileName); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(command.OutOrStdout(), "Logged out of %q.\n", profileName)
+			_, err = fmt.Fprintln(command.OutOrStdout(), styleSuccess.Render("Logged out")+" "+styleMuted.Render("of profile")+" "+styleInfo.Render(profileName)+".")
 			return err
 		},
 	}
@@ -285,7 +343,7 @@ func (state commandState) logoutCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) statusCommand() *cobra.Command {
+func (state *commandState) statusCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "status",
 		Short: "Show current login status and active profile",
@@ -300,7 +358,7 @@ func (state commandState) statusCommand() *cobra.Command {
 				return err
 			}
 			if len(config.Profiles) == 0 {
-				_, err := fmt.Fprintln(stdout, "Not logged in. Run: kb login")
+				_, err := fmt.Fprintln(stdout, styleWarning.Render("Not logged in.")+" Run: "+styleInfo.Render("kb-cli login"))
 				return err
 			}
 			activeName := state.profile
@@ -308,7 +366,7 @@ func (state commandState) statusCommand() *cobra.Command {
 				activeName = config.ActiveProfile
 			}
 			if activeName == "" {
-				_, err := fmt.Fprintln(stdout, "Not logged in. Run: kb login")
+				_, err := fmt.Fprintln(stdout, styleWarning.Render("Not logged in.")+" Run: "+styleInfo.Render("kb-cli login"))
 				return err
 			}
 			profile, ok := config.Profiles[activeName]
@@ -318,21 +376,31 @@ func (state commandState) statusCommand() *cobra.Command {
 			// Try to verify the connection
 			client, err := NewClient(store, activeName, nil)
 			if err != nil {
-				_, _ = fmt.Fprintf(stdout, "Profile: %s\nServer: %s\nMethod: %s\nStatus: credentials error (%v)\n", activeName, profile.URL, profile.Method, err)
+				_, _ = fmt.Fprint(stdout, renderStatus(activeName, profile, styleError.Render("credentials error: ")+err.Error()))
 				return nil
 			}
+			client.SetUserAgent(state.version)
+			client.debug = state.debug
 			if _, err := client.List(command.Context(), nil); err != nil {
-				_, _ = fmt.Fprintf(stdout, "Profile: %s\nServer: %s\nMethod: %s\nStatus: connected but API call failed (%v)\n", activeName, profile.URL, profile.Method, err)
+				_, _ = fmt.Fprint(stdout, renderStatus(activeName, profile, styleWarning.Render("API call failed: ")+err.Error()))
 				return nil
 			}
-			_, err = fmt.Fprintf(stdout, "Profile: %s\nServer: %s\nMethod: %s\nStatus: logged in\n", activeName, profile.URL, profile.Method)
+			_, err = fmt.Fprint(stdout, renderStatus(activeName, profile, styleSuccess.Render("logged in")))
 			return err
 		},
 	}
 	return command
 }
 
-func (state commandState) profileCommand() *cobra.Command {
+// renderStatus formats the interactive status report with distinct values and state.
+func renderStatus(name string, profile Profile, status string) string {
+	return styleMuted.Render("Profile:") + " " + styleInfo.Render(name) + "\n" +
+		styleMuted.Render("Server:") + " " + styleInfo.Render(profile.URL) + "\n" +
+		styleMuted.Render("Method:") + " " + styleHeader.Render(profile.Method) + "\n" +
+		styleMuted.Render("Status:") + " " + status + "\n"
+}
+
+func (state *commandState) profileCommand() *cobra.Command {
 	command := &cobra.Command{Use: "profile", Short: "Manage connection profiles"}
 	command.AddCommand(
 		&cobra.Command{
@@ -381,7 +449,7 @@ func (state commandState) profileCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) listCommand() *cobra.Command {
+func (state *commandState) listCommand() *cobra.Command {
 	var persistent, jsonOutput bool
 	command := &cobra.Command{
 		Use:   "list",
@@ -415,7 +483,7 @@ func (state commandState) listCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) getCommand() *cobra.Command {
+func (state *commandState) getCommand() *cobra.Command {
 	var output string
 	command := &cobra.Command{
 		Use:   "get ID",
@@ -433,7 +501,7 @@ func (state commandState) getCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) pullCommand() *cobra.Command {
+func (state *commandState) pullCommand() *cobra.Command {
 	var dir string
 	var interval time.Duration
 	var watch, all bool
@@ -468,7 +536,7 @@ func (state commandState) pullCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) pushCommand() *cobra.Command {
+func (state *commandState) pushCommand() *cobra.Command {
 	var dir string
 	var interval time.Duration
 	var watch, removeAfter, persistent bool
@@ -522,7 +590,7 @@ func (state commandState) pushCommand() *cobra.Command {
 	return command
 }
 
-func (state commandState) syncCommand() *cobra.Command {
+func (state *commandState) syncCommand() *cobra.Command {
 	var dir string
 	var interval time.Duration
 	var watch, all bool
@@ -764,7 +832,7 @@ func uniquePath(dir, name string) string {
 	}
 }
 
-func (state commandState) pinCommand(persistent bool) *cobra.Command {
+func (state *commandState) pinCommand(persistent bool) *cobra.Command {
 	name := "pin"
 	short := "Make an item persistent"
 	if !persistent {
@@ -785,7 +853,7 @@ func (state commandState) pinCommand(persistent bool) *cobra.Command {
 	}
 }
 
-func (state commandState) deleteCommand() *cobra.Command {
+func (state *commandState) deleteCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "rm ID",
 		Aliases: []string{"delete"},
@@ -859,7 +927,7 @@ func authentikAppPasswordCredentials(username string, stderr io.Writer) (Credent
 	if strings.ContainsAny(username, ":\r\n") {
 		return Credentials{}, errors.New("Authentik username cannot contain a colon or line break")
 	}
-	password, err := secret("AUTHENTIK_APP_PASSWORD", "Authentik app password: ")
+	password, err := secretFirst([]string{"KB_PASSWORD", "AUTHENTIK_APP_PASSWORD", "APP_PASSWORD"}, "Authentik app password: ")
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -871,8 +939,16 @@ func newDebugLogger(level string, output io.Writer) debugLogger {
 	if !strings.EqualFold(level, "debug") {
 		return func(string, ...any) {}
 	}
+	styles := newDiagnosticStyles(output)
 	return func(format string, values ...any) {
-		_, _ = fmt.Fprintf(output, "[debug] "+format+"\n", values...)
+		message := fmt.Sprintf(format, values...)
+		stage, detail, found := strings.Cut(message, ": ")
+		if found {
+			message = styles.stage.Render(stage+":") + " " + styles.highlight(detail, styles.value)
+		} else {
+			message = styles.highlight(message, styles.value)
+		}
+		_, _ = fmt.Fprintln(output, styles.debug.Render("[debug]")+" "+message)
 	}
 }
 
@@ -890,6 +966,16 @@ func secret(environment, prompt string) (string, error) {
 		return "", errors.New("secret cannot be empty")
 	}
 	return string(value), nil
+}
+
+// secretFirst returns the first configured environment secret or prompts for one.
+func secretFirst(environments []string, prompt string) (string, error) {
+	for _, environment := range environments {
+		if value := os.Getenv(environment); value != "" {
+			return value, nil
+		}
+	}
+	return secret("", prompt)
 }
 
 func headerEnvName(name string) string {
@@ -1023,7 +1109,7 @@ func discoverAuthConfig(ctx context.Context, serverURL, version string, debug de
 }
 
 // userAgent returns the klipbord-cli User-Agent string for this build.
-func (state commandState) userAgent() string {
+func (state *commandState) userAgent() string {
 	version := state.version
 	if version == "" {
 		version = "dev"
@@ -1035,7 +1121,7 @@ func (state commandState) userAgent() string {
 // newer release. It never blocks or fails the surrounding command: the network
 // lookup runs in a goroutine with a short timeout and any error is discarded.
 // The notice (if any) is printed to stderr.
-func (state commandState) maybeCheckVersion(ctx context.Context, stderr io.Writer) {
+func (state *commandState) maybeCheckVersion(ctx context.Context, stderr io.Writer) {
 	store, err := state.store()
 	if err != nil {
 		return
@@ -1067,7 +1153,7 @@ func (state commandState) maybeCheckVersion(ctx context.Context, stderr io.Write
 	}()
 }
 
-func (state commandState) versionCommand() *cobra.Command {
+func (state *commandState) versionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the kb version",
@@ -1083,7 +1169,7 @@ func (state commandState) versionCommand() *cobra.Command {
 	}
 }
 
-func (state commandState) updateCommand() *cobra.Command {
+func (state *commandState) updateCommand() *cobra.Command {
 	var checkOnly bool
 	command := &cobra.Command{
 		Use:   "update",

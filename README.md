@@ -247,9 +247,41 @@ kb-cli login --url https://klipbord.example.com \
 header in your operating system keychain. For unattended use, set
 `AUTHENTIK_USERNAME` and `AUTHENTIK_APP_PASSWORD` in the calling environment.
 
-Use `--log-level debug` with `kb-cli login` to diagnose discovery or OIDC setup.
-It prints request URLs, response statuses, and OAuth error codes while redacting
-device codes, access tokens, refresh tokens, and configured headers.
+### Non-interactive CLI login
+
+`kb-cli login` saves the connection profile in your platform config directory
+(for example, `~/.config/klipbord/config.yaml` on Linux) and saves credentials
+in your operating system keychain. Put these defaults in `.env`, load them into
+your environment (for example, with direnv), then run `kb-cli login` once.
+The CLI does not load `.env` automatically:
+
+```dotenv
+KB_SERVER=https://kb.example.com
+KB_METHOD=authentik-app-password
+KB_PROFILE=default
+KB_USERNAME=your-authentik-username
+KB_PASSWORD=your-authentik-app-password
+```
+
+`KB_SERVER`, `KB_METHOD`, `KB_PROFILE`, `KB_USERNAME`, `KB_OIDC_ISSUER`,
+`KB_OIDC_CLIENT_ID`, and `KB_OIDC_SCOPES` provide defaults for the matching
+`login` settings. `KB_OIDC_SCOPES` accepts spaces or commas. Explicit flags
+always win. For Authentik, `KB_PASSWORD` is preferred; the older
+`AUTHENTIK_APP_PASSWORD` and `APP_PASSWORD` names are also accepted.
+
+Use `kb-cli login --debug` (or `--log-level debug`) to diagnose login failures.
+Terminal output highlights stages, URLs, HTTP statuses, and recovery advice in
+color. Set `NO_COLOR=1` to disable these colors; redirected diagnostics stay plain.
+Diagnostics go to standard error and include the selected profile and method,
+discovery/OIDC stages, and the final API request, status, and elapsed time.
+The API probe omits credential values, cookies, response bodies, and URL query
+parameters from diagnostics. It reports redirects without following them, so a
+browser login page cannot hide the original API response.
+
+If the connection test fails, the error explains that your profile is still
+saved and gives recovery advice for your login method. For example, an Authentik
+401 points you to your username, App Password, and proxy header authentication
+settings. A saved profile does not mean your credentials were accepted.
 
 ### Version management
 
@@ -557,6 +589,13 @@ Each UI section has a stable URL, so it remains selected after a refresh and can
 ---
 
 ## Changelog
+
+### v2.20.0
+
+- **Clearer login troubleshooting**: Use `kb-cli login --debug` for request status, timing, and authentication metadata without exposing credentials or response bodies. Failed connection tests now explain the saved-profile state and offer method-specific recovery advice.
+- **More terminal color**: Login diagnostics and errors highlight stages, URLs, HTTP statuses, and next steps. Redirected diagnostics stay plain, and `NO_COLOR` disables diagnostic colors.
+- **Environment-based login defaults**: Configure server, profile, authentication method, username, password, and OIDC settings through `KB_*` environment variables; explicit flags take precedence.
+- **Reliable profile selection**: Subcommands now honor the supplied `--config` and `--profile` flags. Login probes report redirects instead of following them to browser login pages.
 
 ### v2.18.0
 

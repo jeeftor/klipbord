@@ -9,7 +9,10 @@ import (
 var version = "dev"
 
 func main() {
-	if err := kb.NewRootCommand(version).Execute(); err != nil {
+	command := kb.NewRootCommand(version)
+	command.SilenceErrors = true
+	if err := command.Execute(); err != nil {
+		kb.PrintError(command.ErrOrStderr(), err)
 		os.Exit(1)
 	}
 }

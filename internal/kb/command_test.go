@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -449,6 +450,54 @@ func TestAuthentikAppPasswordCredentialsUseBasicAuthentication(t *testing.T) {
 	}
 	if string(decoded) != "alex:app-password" {
 		t.Fatalf("decoded authorization = %q", decoded)
+	}
+}
+
+func TestAuthentikAppPasswordCredentialsPreferKBPassword(t *testing.T) {
+	t.Setenv("AUTHENTIK_USERNAME", "alex")
+	t.Setenv("KB_PASSWORD", "kb-password")
+	t.Setenv("AUTHENTIK_APP_PASSWORD", "old-password")
+	credentials, err := authentikAppPasswordCredentials("", &strings.Builder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(credentials.Headers["Authorization"], "Basic "))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(decoded), "alex:kb-password"; got != want {
+		t.Fatalf("decoded authorization = %q, want %q", got, want)
+	}
+}
+
+func TestLoginEnvironmentDefaults(t *testing.T) {
+	t.Setenv("KB_PROFILE", "office")
+	t.Setenv("KB_SERVER", "https://kb.example.com")
+	t.Setenv("KB_METHOD", "oidc")
+	t.Setenv("KB_OIDC_SCOPES", "openid, profile offline_access")
+
+	command := NewRootCommand("test")
+	login, _, err := command.Find([]string{"login"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loginEnv(login, "name", "default", "KB_PROFILE"); got != "office" {
+		t.Fatalf("profile = %q, want office", got)
+	}
+	if got := loginEnv(login, "url", "", "KB_SERVER"); got != "https://kb.example.com" {
+		t.Fatalf("server = %q", got)
+	}
+	if got := loginEnv(login, "method", "", "KB_METHOD"); got != "oidc" {
+		t.Fatalf("method = %q", got)
+	}
+	if got, want := loginScopesEnv(), []string{"openid", "profile", "offline_access"}; !slices.Equal(got, want) {
+		t.Fatalf("scopes = %v, want %v", got, want)
+	}
+	if err := login.Flags().Set("url", "https://flag.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if got := loginEnv(login, "url", "https://flag.example.com", "KB_SERVER"); got != "https://flag.example.com" {
+		t.Fatalf("flag did not override environment: %q", got)
 	}
 }
 
